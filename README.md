@@ -1,8 +1,6 @@
 # Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor
 
-This is based off of the Topcoder challenge - [Learn AI – Build and Deploy > "Great work. You've translated your idea into a solution sketch. Before we wrap, would you like to discuss possible optimizations or revisit any test cases?"
-
-## Student Support and Interaction HandlingAI Agent with Topcoder MCP on Hugging Face](https://www.topcoder.com/challenges/355a5497-71c3-4e3a-b200-f53d62564667?tab=details) and [Hugging Face MCP Course](https://huggingface.co/learn/mcp-course/unit0/introduction#welcome-to-the--model-context-protocol-mcp-course)
+This is based off of the Topcoder challenge - [Learn AI – Build and Deploy](https://www.topcoder.com/challenges/355a5497-71c3-4e3a-b200-f53d62564667?tab=details) and [Hugging Face MCP Course](https://huggingface.co/learn/mcp-course/unit0/introduction#welcome-to-the--model-context-protocol-mcp-course)
 
 AI agent that helps guide you through solving a coding problem following the [Algorithm Design Canvas](https://www.hiredintech.com/algorithms/algorithm-design-canvas/what-is-the-canvas/). The professor will guide you through the steps to solve the problem as if you were doing a whiteboard coding interview. The steps taken will be based on:
 
