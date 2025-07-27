@@ -1,5 +1,11 @@
 import axios from "axios";
 import dotenv from "dotenv";
+import {
+  parseSSEResponse,
+  createMCPHeaders,
+  createMCPInitPayload,
+  extractSessionId,
+} from "./mcpUtils";
 
 dotenv.config();
 
@@ -7,26 +13,6 @@ const MCP_ENDPOINT = process.env.MCP_ENDPOINT;
 const MCP_SESSION_TOKEN = process.env.MCP_SESSION_TOKEN;
 
 let sessionId: string | null = null;
-
-/**
- * Parse SSE (Server-Sent Events) response
- */
-function parseSSEResponse(sseText: string): any {
-  const lines = sseText.trim().split("\n");
-  for (const line of lines) {
-    if (line.startsWith("data: ")) {
-      const dataStr = line.substring(6);
-      if (dataStr.trim()) {
-        try {
-          return JSON.parse(dataStr);
-        } catch (e) {
-          console.log("Failed to parse JSON:", dataStr);
-        }
-      }
-    }
-  }
-  return null;
-}
 
 /**
  * Initialize MCP session and get session ID
@@ -38,41 +24,15 @@ async function initializeMCPSession(): Promise<boolean> {
   }
 
   try {
-    const headers = {
-      Accept: "application/json, text/event-stream",
-      "Content-Type": "application/json",
-      "X-MCP-Session": MCP_SESSION_TOKEN,
-    };
-
-    const initPayload = {
-      jsonrpc: "2.0",
-      method: "initialize",
-      params: {
-        protocolVersion: "2024-11-05",
-        capabilities: {
-          tools: {},
-        },
-        clientInfo: {
-          name: "professor-al-gorithm",
-          version: "1.0.0",
-        },
-      },
-      id: 1,
-    };
+    const headers = createMCPHeaders(MCP_SESSION_TOKEN);
+    const initPayload = createMCPInitPayload();
 
     const response = await axios.post(`${MCP_ENDPOINT}/mcp`, initPayload, {
       headers,
     });
 
     // Get session ID from headers
-    sessionId =
-      response.headers["mcp-session-id"] ||
-      response.headers["x-mcp-session-id"];
-
-    if (!sessionId) {
-      // Fallback to using session token as session ID
-      sessionId = MCP_SESSION_TOKEN;
-    }
+    sessionId = extractSessionId(response.headers, MCP_SESSION_TOKEN);
 
     console.log(
       `MCP session initialized with ID: ${sessionId?.slice(0, 20)}...`
