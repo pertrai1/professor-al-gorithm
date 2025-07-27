@@ -1,0 +1,33 @@
+{
+  "name": "professor-al-gorithm",
+  "version": "1.0.0",
+  "description": "Virtual AI professor for learning to solve coding challenged",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test-mcp-workflow": "ts-node src/testMCPWorkflow.ts",
+    "dev": "ts-node src/index.ts",
+    "start": "ts-node src/index.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pertrai1/professor-al-gorithm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/pertrai1/professor-al-gorithm/issues"
+  },
+  "homepage": "https://github.com/pertrai1/professor-al-gorithm#readme",
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.1"
+  }
+}
