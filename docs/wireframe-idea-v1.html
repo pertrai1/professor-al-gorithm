@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professor Al Gorithm - Algorithm Design Canvas</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 300;
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .canvas-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .canvas-phase {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            border-left: 5px solid #3498db;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .canvas-phase.active {
+            border-left-color: #e74c3c;
+            background: #fff5f5;
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.1);
+        }
+        
+        .canvas-phase.completed {
+            border-left-color: #27ae60;
+            background: #f0fff4;
+        }
+        
+        .phase-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .phase-number {
+            background: #3498db;
+            color: white;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        
+        .canvas-phase.active .phase-number {
+            background: #e74c3c;
+        }
+        
+        .canvas-phase.completed .phase-number {
+            background: #27ae60;
+        }
+        
+        .phase-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .phase-description {
+            color: #7f8c8d;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .phase-content {
+            min-height: 200px;
+        }
+        
+        .chat-area {
+            background: #ecf0f1;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 150px;
+            margin-bottom: 15px;
+            border: 2px dashed #bdc3c7;
+        }
+        
+        .canvas-phase.active .chat-area {
+            border-color: #e74c3c;
+            background: white;
+        }
+        
+        .checklist {
+            list-style: none;
+        }
+        
+        .checklist li {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+            border: 1px solid #ecf0f1;
+        }
+        
+        .checklist input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        
+        .progress-bar {
+            background: #ecf0f1;
+            height: 8px;
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            height: 100%;
+            width: 25%;
+            transition: width 0.5s ease;
+        }
+        
+        .problem-selector {
+            background: #fff;
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .problem-title {
+            font-size: 1.3em;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .problem-meta {
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .input-area {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ecf0f1;
+            border-radius: 8px;
+            font-size: 1em;
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .input-area:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+        
+        .professor-avatar {
+            position: absolute;
+            top: -15px;
+            right: -15px;
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #f39c12, #e74c3c);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        
+        @media (max-width: 768px) {
+            .canvas-container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎓 Professor Al Gorithm</h1>
+            <p>Master algorithmic thinking with the Algorithm Design Canvas</p>
+        </div>
+        
+        <div class="problem-selector">
+            <div class="problem-title">🎯 Current Challenge: Two Sum</div>
+            <div class="problem-meta">Difficulty: Easy • Track: Development • Skills: Arrays, Hash Tables</div>
+            <button class="btn" onclick="selectNewProblem()">Select Different Problem</button>
+        </div>
+        
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+        
+        <div class="canvas-container">
+            <div class="canvas-phase active" id="phase1">
+                <div class="professor-avatar">🤖</div>
+                <div class="phase-header">
+                    <div class="phase-number">1</div>
+                    <div class="phase-title">Constraints</div>
+                </div>
+                <div class="phase-description">
+                    Define the problem space completely before thinking solutions
+                </div>
+                <div class="phase-content">
+                    <div class="chat-area" id="chat1">
+                        <p><strong>Professor Al:</strong> "Let's start by understanding the constraints. What can you tell me about the input format for the Two Sum problem?"</p>
+                    </div>
+                    <textarea class="input-area" placeholder="Describe the input format, size constraints, and requirements..."></textarea>
+                    <ul class="checklist">
+                        <li><input type="checkbox"> Input format & types</li>
+                        <li><input type="checkbox"> Output format & types</li>
+                        <li><input type="checkbox"> Size constraints</li>
+                        <li><input type="checkbox"> Performance requirements</li>
+                        <li><input type="checkbox"> Edge cases</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="canvas-phase" id="phase2">
+                <div class="phase-header">
+                    <div class="phase-number">2</div>
+                    <div class="phase-title">Ideas</div>
+                </div>
+                <div class="phase-description">
+                    Explore multiple solution approaches with trade-off analysis
+                </div>
+                <div class="phase-content">
+                    <div class="chat-area" id="chat2">
+                        <p><em>Complete Phase 1 to unlock Ideas discussion...</em></p>
+                    </div>
+                    <textarea class="input-area" placeholder="Brainstorm different approaches and their trade-offs..." disabled></textarea>
+                    <ul class="checklist">
+                        <li><input type="checkbox" disabled> Brute force approach</li>
+                        <li><input type="checkbox" disabled> Hash map approach</li>
+                        <li><input type="checkbox" disabled> Two pointers (if applicable)</li>
+                        <li><input type="checkbox" disabled> Trade-off analysis</li>
+                        <li><input type="checkbox" disabled> Chosen approach</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="canvas-phase" id="phase3">
+                <div class="phase-header">
+                    <div class="phase-number">3</div>
+                    <div class="phase-title">Test Cases</div>
+                </div>
+                <div class="phase-description">
+                    Validate chosen approach with comprehensive test scenarios
+                </div>
+                <div class="phase-content">
+                    <div class="chat-area" id="chat3">
+                        <p><em>Complete Phase 2 to unlock Test Cases discussion...</em></p>
+                    </div>
+                    <textarea class="input-area" placeholder="Create test cases for your chosen approach..." disabled></textarea>
+                    <ul class="checklist">
+                        <li><input type="checkbox" disabled> Happy path example</li>
+                        <li><input type="checkbox" disabled> Edge cases</li>
+                        <li><input type="checkbox" disabled> Boundary conditions</li>
+                        <li><input type="checkbox" disabled> Mental walkthrough</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="canvas-phase" id="phase4">
+                <div class="phase-header">
+                    <div class="phase-number">4</div>
+                    <div class="phase-title">Code Structure</div>
+                </div>
+                <div class="phase-description">
+                    Outline implementation structure without writing actual code
+                </div>
+                <div class="phase-content">
+                    <div class="chat-area" id="chat4">
+                        <p><em>Complete Phase 3 to unlock Code Structure discussion...</em></p>
+                    </div>
+                    <textarea class="input-area" placeholder="Outline your algorithm structure and key steps..." disabled></textarea>
+                    <ul class="checklist">
+                        <li><input type="checkbox" disabled> Algorithm steps outlined</li>
+                        <li><input type="checkbox" disabled> Data structures identified</li>
+                        <li><input type="checkbox" disabled> Helper functions planned</li>
+                        <li><input type="checkbox" disabled> Implementation validated</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let currentPhase = 1;
+        let progress = 25;
+        
+        function selectNewProblem() {
+            // This would connect to your MCP service
+            alert('🔄 Connecting to Topcoder MCP server to fetch new challenges...');
+        }
+        
+        function updateProgress() {
+            const progressFill = document.getElementById('progressFill');
+            progressFill.style.width = progress + '%';
+        }
+        
+        function advancePhase() {
+            // Mark current phase as completed
+            document.getElementById(`phase${currentPhase}`).classList.remove('active');
+            document.getElementById(`phase${currentPhase}`).classList.add('completed');
+            
+            // Advance to next phase
+            currentPhase++;
+            progress = currentPhase * 25;
+            
+            if (currentPhase <= 4) {
+                document.getElementById(`phase${currentPhase}`).classList.add('active');
+                
+                // Enable the input area and checkboxes for the new phase
+                const phase = document.getElementById(`phase${currentPhase}`);
+                const textarea = phase.querySelector('.input-area');
+                const checkboxes = phase.querySelectorAll('input[type="checkbox"]');
+                
+                textarea.disabled = false;
+                checkboxes.forEach(cb => cb.disabled = false);
+                
+                updateProgress();
+            }
+        }
+        
+        // Add event listeners for phase completion detection
+        document.querySelectorAll('.canvas-phase.active .checklist input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const phase = this.closest('.canvas-phase');
+                const checkboxes = phase.querySelectorAll('.checklist input[type="checkbox"]');
+                const checkedBoxes = phase.querySelectorAll('.checklist input[type="checkbox"]:checked');
+                
+                // If all checkboxes are checked, enable phase advancement
+                if (checkedBoxes.length === checkboxes.length) {
+                    setTimeout(() => {
+                        if (confirm('Great work! Ready to advance to the next phase?')) {
+                            advancePhase();
+                        }
+                    }, 1000);
+                }
+            });
+        });
+        
+        // Initialize
+        updateProgress();
+    </script>
+</body>
+</html>
