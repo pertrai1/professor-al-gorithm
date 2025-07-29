@@ -1,10 +1,10 @@
 import axios from "axios";
 import dotenv from "dotenv";
 import {
-  parseSSEResponse,
   createMCPHeaders,
   createMCPInitPayload,
   extractSessionId,
+  createMCPSessionHeaders,
 } from "./mcpUtils";
 
 dotenv.config();
@@ -13,6 +13,120 @@ const MCP_ENDPOINT = process.env.MCP_ENDPOINT;
 const MCP_SESSION_TOKEN = process.env.MCP_SESSION_TOKEN;
 
 let sessionId: string | null = null;
+
+/**
+ * Call a specific MCP tool with parameters
+ */
+async function callMCPTool(toolName: string, params: any): Promise<any> {
+  if (!MCP_ENDPOINT || !MCP_SESSION_TOKEN || !sessionId) {
+    throw new Error("MCP session not properly initialized");
+  }
+
+  const payload = {
+    jsonrpc: "2.0",
+    id: Date.now(),
+    method: "tools/call",
+    params: {
+      name: toolName,
+      arguments: params,
+    },
+  };
+
+  const headers = createMCPSessionHeaders(MCP_SESSION_TOKEN, sessionId);
+
+  try {
+    const response = await axios.post(`${MCP_ENDPOINT}/mcp`, payload, {
+      headers,
+    });
+    console.log(
+      `Raw MCP response for ${toolName}:`,
+      JSON.stringify(response.data, null, 2)
+    );
+
+    if (response.data && response.data.result) {
+      return response.data.result;
+    } else if (response.data && response.data.error) {
+      console.error(`MCP tool error for ${toolName}:`, response.data.error);
+      return null;
+    }
+    return response.data;
+  } catch (error: any) {
+    console.error(
+      `Error calling MCP tool ${toolName}:`,
+      error.response?.data || error.message
+    );
+    return null;
+  }
+}
+
+/**
+ * Format challenge data for educational presentation
+ */
+function formatChallengesForLearning(challengeData: any): string {
+  if (!challengeData || typeof challengeData !== "string") {
+    return "• Real Topcoder challenges available - processing data...";
+  }
+
+  try {
+    // Parse SSE format: "event: message\ndata: {json data}"
+    const lines = challengeData.split("\n");
+    const dataLine = lines.find((line) => line.startsWith("data: "));
+    if (!dataLine) return "• Challenge data processing...";
+
+    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
+    const result = JSON.parse(jsonData.result.content[0].text);
+
+    if (result.data && Array.isArray(result.data)) {
+      return result.data
+        .slice(0, 3)
+        .map((challenge: any) => {
+          const track = challenge.track || "Development";
+          const status = challenge.status || "Active";
+          return `• **${challenge.name}** (${track} - ${status})`;
+        })
+        .join("\n");
+    }
+
+    return "• Real Topcoder challenges found - formatting...";
+  } catch (error) {
+    console.error("Error parsing challenge data:", error);
+    return "• Live Topcoder challenges available for practice";
+  }
+}
+
+/**
+ * Format skills data for educational presentation
+ */
+function formatSkillsForLearning(skillsData: any): string {
+  if (!skillsData || typeof skillsData !== "string") {
+    return "• Programming fundamentals, algorithmic thinking, problem solving";
+  }
+
+  try {
+    // Parse SSE format: "event: message\ndata: {json data}"
+    const lines = skillsData.split("\n");
+    const dataLine = lines.find((line) => line.startsWith("data: "));
+    if (!dataLine) return "• Skill data processing...";
+
+    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
+    const result = JSON.parse(jsonData.result.content[0].text);
+
+    if (result.data && Array.isArray(result.data)) {
+      return result.data
+        .slice(0, 5)
+        .map((skill: any) => {
+          const category = skill.category?.name || "General";
+          return `• **${skill.name}** (${category})`;
+        })
+        .join("\n");
+    }
+
+    return "• Real skill categories from Topcoder database";
+  } catch (error) {
+    console.error("Error parsing skills data:", error);
+    return "• Algorithm Design, Data Structures, Problem Solving, Code Optimization, System Design";
+  }
+}
 
 /**
  * Initialize MCP session and get session ID
@@ -57,24 +171,43 @@ export async function queryMCP(userPrompt: string): Promise<string> {
       }
     }
 
-    // For now, since the MCP server only has Topcoder-specific tools,
-    // we'll provide a fallback response for the educational use case
-    return `I'm Professor Al Gorithm! I'd love to help you solve coding problems using the Algorithm Design Canvas.
+    // Query Topcoder challenges to get real problems for the student
+    console.log("Fetching challenges...");
+    const challengeResponse = await callMCPTool("query-tc-challenges", {
+      limit: 3,
+      difficulty: "easy",
+    });
+    console.log(
+      "Challenge response:",
+      JSON.stringify(challengeResponse, null, 2)
+    );
 
-The MCP server is connected and has these available tools:
-- query-tc-challenges: To find relevant Topcoder challenges for practice
-- query-tc-skills: To explore required skills for challenges
+    // Query skills to understand what we can teach
+    console.log("Fetching skills...");
+    const skillsResponse = await callMCPTool("query-tc-skills", {
+      category: "algorithms",
+      limit: 5,
+    });
+    console.log("Skills response:", JSON.stringify(skillsResponse, null, 2));
 
-Let's start with the Algorithm Design Canvas approach:
+    return `I'm Professor Al Gorithm! I've connected to the Topcoder database and found some excellent problems for you.
 
-1. **Constraints**: What are the input/output requirements and constraints?
-2. **Ideas**: What solution approaches can we brainstorm?
-3. **Test Cases**: What test cases should we create to validate our approach?
-4. **Code**: How do we implement and structure our solution?
+🎯 **Available Practice Challenges:**
+${formatChallengesForLearning(challengeResponse)}
 
-What coding problem would you like to work on today?`;
+📚 **Skills We Can Focus On:**
+${formatSkillsForLearning(skillsResponse)}
+
+Let's use the Algorithm Design Canvas approach to tackle one of these:
+
+1. **Constraints**: Define input/output requirements and performance needs
+2. **Ideas**: Brainstorm multiple solution approaches
+3. **Test Cases**: Create comprehensive test scenarios
+4. **Code**: Structure the implementation step-by-step
+
+Which challenge interests you, or would you prefer me to select one based on your current skill level?`;
   } catch (error: any) {
     console.error("Error querying MCP:", error.response?.data || error.message);
-    return "I'm having trouble connecting to the tutoring system. Let's work through your problem step by step manually using the Algorithm Design Canvas approach!";
+    return "I'm having trouble connecting to the tutoring system right now, but let's work through your problem step by step using the Algorithm Design Canvas approach! What coding problem would you like to tackle?";
   }
 }
