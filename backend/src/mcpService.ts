@@ -9,6 +9,71 @@ import {
 
 dotenv.config();
 
+// Type definitions for MCP responses
+interface MCPToolParams {
+  [key: string]: string | number | boolean;
+}
+
+interface MCPResponse {
+  result?: MCPResult;
+  error?: MCPError;
+  jsonrpc: string;
+  id: number;
+}
+
+interface MCPResult {
+  content?: MCPContent[];
+  structuredContent?: StructuredContent;
+}
+
+interface MCPContent {
+  type: string;
+  text: string;
+}
+
+interface MCPError {
+  code: number;
+  message: string;
+}
+
+interface StructuredContent {
+  page: number;
+  pageSize: number;
+  total: number;
+  data: Challenge[] | Skill[];
+}
+
+interface Challenge {
+  id: string;
+  name: string;
+  track?: string;
+  status?: string;
+  description?: string;
+  typeId?: string;
+  trackId?: string;
+  skills?: ChallengeSkill[];
+  // Add other challenge properties as needed
+}
+
+interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+  category?: SkillCategory;
+}
+
+interface SkillCategory {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface ChallengeSkill {
+  name: string;
+  id: string;
+  category: SkillCategory;
+}
+
 const MCP_ENDPOINT = process.env.MCP_ENDPOINT;
 const MCP_SESSION_TOKEN = process.env.MCP_SESSION_TOKEN;
 
@@ -17,7 +82,10 @@ let sessionId: string | null = null;
 /**
  * Call a specific MCP tool with parameters
  */
-async function callMCPTool(toolName: string, params: any): Promise<any> {
+async function callMCPTool(
+  toolName: string,
+  params: MCPToolParams
+): Promise<MCPResponse | null> {
   if (!MCP_ENDPOINT || !MCP_SESSION_TOKEN || !sessionId) {
     throw new Error("MCP session not properly initialized");
   }
@@ -44,17 +112,49 @@ async function callMCPTool(toolName: string, params: any): Promise<any> {
     );
 
     if (response.data && response.data.result) {
-      return response.data.result;
+      return response.data;
     } else if (response.data && response.data.error) {
       console.error(`MCP tool error for ${toolName}:`, response.data.error);
       return null;
     }
     return response.data;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as {
+      response?: { data?: unknown };
+      message?: string;
+    };
     console.error(
       `Error calling MCP tool ${toolName}:`,
-      error.response?.data || error.message
+      axiosError.response?.data || axiosError.message
     );
+    return null;
+  }
+}
+
+/**
+ * Parse SSE format data and extract the structured data array
+ */
+function parseSSEData(sseData: unknown): Challenge[] | Skill[] | null {
+  if (!sseData || typeof sseData !== "string") {
+    return null;
+  }
+
+  try {
+    // Parse SSE format: "event: message\ndata: {json data}"
+    const lines = sseData.split("\n");
+    const dataLine = lines.find((line) => line.startsWith("data: "));
+    if (!dataLine) return null;
+
+    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
+    const result = JSON.parse(jsonData.result.content[0].text);
+
+    if (result.data && Array.isArray(result.data)) {
+      return result.data;
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error parsing SSE data:", error);
     return null;
   }
 }
@@ -62,70 +162,42 @@ async function callMCPTool(toolName: string, params: any): Promise<any> {
 /**
  * Format challenge data for educational presentation
  */
-function formatChallengesForLearning(challengeData: any): string {
-  if (!challengeData || typeof challengeData !== "string") {
+function formatChallengesForLearning(
+  challengeData: MCPResponse | null
+): string {
+  const parsedData = parseSSEData(challengeData);
+
+  if (!parsedData) {
     return "• Real Topcoder challenges available - processing data...";
   }
 
-  try {
-    // Parse SSE format: "event: message\ndata: {json data}"
-    const lines = challengeData.split("\n");
-    const dataLine = lines.find((line) => line.startsWith("data: "));
-    if (!dataLine) return "• Challenge data processing...";
-
-    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
-    const result = JSON.parse(jsonData.result.content[0].text);
-
-    if (result.data && Array.isArray(result.data)) {
-      return result.data
-        .slice(0, 3)
-        .map((challenge: any) => {
-          const track = challenge.track || "Development";
-          const status = challenge.status || "Active";
-          return `• **${challenge.name}** (${track} - ${status})`;
-        })
-        .join("\n");
-    }
-
-    return "• Real Topcoder challenges found - formatting...";
-  } catch (error) {
-    console.error("Error parsing challenge data:", error);
-    return "• Live Topcoder challenges available for practice";
-  }
+  return (parsedData as Challenge[])
+    .slice(0, 3)
+    .map((challenge: Challenge) => {
+      const track = challenge.track || "Development";
+      const status = challenge.status || "Active";
+      return `• **${challenge.name}** (${track} - ${status})`;
+    })
+    .join("\n");
 }
 
 /**
  * Format skills data for educational presentation
  */
-function formatSkillsForLearning(skillsData: any): string {
-  if (!skillsData || typeof skillsData !== "string") {
-    return "• Programming fundamentals, algorithmic thinking, problem solving";
+function formatSkillsForLearning(skillsData: MCPResponse | null): string {
+  const parsedData = parseSSEData(skillsData);
+
+  if (!parsedData) {
+    return "• Algorithm Design\n• Data Structures\n• Problem Solving\n• Code Optimization\n• System Design";
   }
 
-  try {
-    // Parse SSE format: "event: message\ndata: {json data}"
-    const lines = skillsData.split("\n");
-    const dataLine = lines.find((line) => line.startsWith("data: "));
-    if (!dataLine) return "• Skill data processing...";
-
-    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
-    const result = JSON.parse(jsonData.result.content[0].text);
-
-    if (result.data && Array.isArray(result.data)) {
-      return result.data
-        .slice(0, 5)
-        .map((skill: any) => {
-          const category = skill.category?.name || "General";
-          return `• **${skill.name}** (${category})`;
-        })
-        .join("\n");
-    }
-
-    return "• Real skill categories from Topcoder database";
-  } catch (error) {
-    console.error("Error parsing skills data:", error);
-    return "• Algorithm Design, Data Structures, Problem Solving, Code Optimization, System Design";
-  }
+  return (parsedData as Skill[])
+    .slice(0, 5)
+    .map((skill: Skill) => {
+      const category = skill.category?.name || "General";
+      return `• **${skill.name}** (${category})`;
+    })
+    .join("\n");
 }
 
 /**
@@ -152,10 +224,14 @@ async function initializeMCPSession(): Promise<boolean> {
       `MCP session initialized with ID: ${sessionId?.slice(0, 20)}...`
     );
     return true;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const axiosError = error as {
+      response?: { data?: unknown };
+      message?: string;
+    };
     console.error(
       "Failed to initialize MCP session:",
-      error.response?.data || error.message
+      axiosError.response?.data || axiosError.message
     );
     return false;
   }
@@ -206,8 +282,15 @@ Let's use the Algorithm Design Canvas approach to tackle one of these:
 4. **Code**: Structure the implementation step-by-step
 
 Which challenge interests you, or would you prefer me to select one based on your current skill level?`;
-  } catch (error: any) {
-    console.error("Error querying MCP:", error.response?.data || error.message);
+  } catch (error: unknown) {
+    const axiosError = error as {
+      response?: { data?: unknown };
+      message?: string;
+    };
+    console.error(
+      "Error querying MCP:",
+      axiosError.response?.data || axiosError.message
+    );
     return "I'm having trouble connecting to the tutoring system right now, but let's work through your problem step by step using the Algorithm Design Canvas approach! What coding problem would you like to tackle?";
   }
 }
