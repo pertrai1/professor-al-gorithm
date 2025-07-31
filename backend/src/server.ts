@@ -1,7 +1,13 @@
-import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { queryMCP, getChallenges, getSkills, processUserQuery } from "./mcpService";
+import express from "express";
+
+import {
+  queryMCP,
+  getChallenges,
+  getSkills,
+  processUserQuery,
+} from "./mcpService";
 
 dotenv.config();
 
@@ -17,7 +23,7 @@ app.get("/", (req, res) => {
   res.json({
     message: "Professor Al Gorithm API is running!",
     version: "1.0.0",
-    status: "healthy"
+    status: "healthy",
   });
 });
 
@@ -33,22 +39,22 @@ app.post("/api/chat", async (req, res) => {
 
     if (!message || typeof message !== "string") {
       return res.status(400).json({
-        error: "Message is required and must be a string"
+        error: "Message is required and must be a string",
       });
     }
 
     const response = await processUserQuery(message, conversationId);
-    
+
     res.json({
       response,
       conversationId: conversationId || Date.now().toString(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error in chat endpoint:", error);
     res.status(500).json({
       error: "Internal server error",
-      message: "Failed to process your request. Please try again."
+      message: "Failed to process your request. Please try again.",
     });
   }
 });
@@ -57,21 +63,21 @@ app.post("/api/chat", async (req, res) => {
 app.get("/api/challenges", async (req, res) => {
   try {
     const { limit = 5, difficulty = "easy" } = req.query;
-    
+
     const challenges = await getChallenges({
       limit: parseInt(limit as string),
-      difficulty: difficulty as string
+      difficulty: difficulty as string,
     });
-    
+
     res.json({
       challenges,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching challenges:", error);
     res.status(500).json({
       error: "Failed to fetch challenges",
-      challenges: []
+      challenges: [],
     });
   }
 });
@@ -80,21 +86,21 @@ app.get("/api/challenges", async (req, res) => {
 app.get("/api/skills", async (req, res) => {
   try {
     const { limit = 10, category = "algorithms" } = req.query;
-    
+
     const skills = await getSkills({
       limit: parseInt(limit as string),
-      category: category as string
+      category: category as string,
     });
-    
+
     res.json({
       skills,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error fetching skills:", error);
     res.status(500).json({
       error: "Failed to fetch skills",
-      skills: []
+      skills: [],
     });
   }
 });
@@ -102,40 +108,45 @@ app.get("/api/skills", async (req, res) => {
 // Algorithm Design Canvas endpoint
 app.post("/api/canvas", async (req, res) => {
   try {
-    const { phase, content, challengeId } = req.body;
-    
+    const { phase, content, _challengeId } = req.body;
+
     if (!phase || !content) {
       return res.status(400).json({
-        error: "Phase and content are required"
+        error: "Phase and content are required",
       });
     }
 
     const validPhases = ["constraints", "ideas", "test-cases", "code"];
     if (!validPhases.includes(phase)) {
       return res.status(400).json({
-        error: "Invalid phase. Must be one of: constraints, ideas, test-cases, code"
+        error:
+          "Invalid phase. Must be one of: constraints, ideas, test-cases, code",
       });
     }
 
     // Process the canvas submission
-    const feedback = await processCanvasPhase(phase, content, challengeId);
-    
+    const feedback = await processCanvasPhase(phase, content, _challengeId);
+
     res.json({
       phase,
       feedback,
       nextPhase: getNextPhase(phase),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     console.error("Error processing canvas:", error);
     res.status(500).json({
-      error: "Failed to process canvas submission"
+      error: "Failed to process canvas submission",
     });
   }
 });
 
 // Helper function to process canvas phases
-async function processCanvasPhase(phase: string, content: string, challengeId?: string): Promise<string> {
+async function processCanvasPhase(
+  phase: string,
+  content: string,
+  _challengeId?: string
+): Promise<string> {
   const prompt = `As Professor Al Gorithm, provide feedback on this ${phase} phase submission: ${content}`;
   return await queryMCP(prompt);
 }
@@ -148,19 +159,29 @@ function getNextPhase(currentPhase: string): string | null {
 }
 
 // Error handling middleware
-app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error("Unhandled error:", error);
-  res.status(500).json({
-    error: "Internal server error",
-    message: process.env.NODE_ENV === "development" ? error.message : "Something went wrong"
-  });
-});
+app.use(
+  (
+    error: Error,
+    req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction
+  ) => {
+    console.error("Unhandled error:", error);
+    res.status(500).json({
+      error: "Internal server error",
+      message:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Something went wrong",
+    });
+  }
+);
 
 // 404 handler
 app.use("*", (req, res) => {
   res.status(404).json({
     error: "Endpoint not found",
-    message: `Cannot ${req.method} ${req.originalUrl}`
+    message: `Cannot ${req.method} ${req.originalUrl}`,
   });
 });
 

@@ -95,7 +95,6 @@ Key parsing strategy:
 #### Tools Found
 
 1. **`query-tc-challenges`**
-
    - Purpose: Returns Topcoder challenges based on query parameters
    - Inputs: status, type, track, tags, search terms, date ranges, pagination
    - Outputs: Paginated list of challenges with full metadata

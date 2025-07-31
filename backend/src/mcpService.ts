@@ -1,5 +1,6 @@
 import axios from "axios";
 import dotenv from "dotenv";
+
 import {
   createMCPHeaders,
   createMCPInitPayload,
@@ -238,12 +239,18 @@ async function initializeMCPSession(): Promise<boolean> {
 }
 
 // Enhanced API functions for Express endpoints
-export async function processUserQuery(userPrompt: string, conversationId?: string): Promise<string> {
+export async function processUserQuery(
+  _userPrompt: string,
+  _conversationId?: string
+): Promise<string> {
   // Add conversation context logic here in future
-  return await queryMCP(userPrompt);
+  return await queryMCP(_userPrompt);
 }
 
-export async function getChallenges(params: { limit: number; difficulty: string }): Promise<Challenge[]> {
+export async function getChallenges(params: {
+  limit: number;
+  difficulty: string;
+}): Promise<Challenge[]> {
   try {
     if (!sessionId) {
       const initialized = await initializeMCPSession();
@@ -265,7 +272,10 @@ export async function getChallenges(params: { limit: number; difficulty: string 
   }
 }
 
-export async function getSkills(params: { limit: number; category: string }): Promise<Skill[]> {
+export async function getSkills(params: {
+  limit: number;
+  category: string;
+}): Promise<Skill[]> {
   try {
     if (!sessionId) {
       const initialized = await initializeMCPSession();
@@ -287,7 +297,7 @@ export async function getSkills(params: { limit: number; category: string }): Pr
   }
 }
 
-export async function queryMCP(userPrompt: string): Promise<string> {
+export async function queryMCP(_userPrompt: string): Promise<string> {
   try {
     // Initialize session if not already done
     if (!sessionId) {
