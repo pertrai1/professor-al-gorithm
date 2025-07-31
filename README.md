@@ -205,26 +205,97 @@ If the steps were skipped, provide a **wrap-up prompt** to reflect on what was l
 
 ## System Architecture
 
-### Frontend Components
+### Backend Services (Current Implementation)
 
-- A simple web interface where users can interact with the professor.
-- Input fields for problem statements, constraints, ideas, and test cases.
-- Display area for the professor's responses and guidance based on The Algorithm Design Canvas.
-- WYSIWYG editor for code sketching.
+- **Express.js API Server**: RESTful endpoints for frontend communication
+- **MCP Integration**: Connects to Topcoder MCP server for real challenges and skills
+- **Educational Logic**: Algorithm Design Canvas methodology implementation
+- **Session Management**: Handles MCP authentication and conversation state
 
-### Backend Services
+### API Endpoints
 
-- Agent orchestration that loads the MCP and manages the conversation flow.
-- Claude AI model that processes user inputs and generates responses based on the MCP.
-- Context includes static prompt + dynamic memory management to maintain continuity.
+#### Core Endpoints
+- `GET /` - Health check and API info
+- `POST /api/chat` - Main conversation interface
+- `GET /api/challenges` - Fetch Topcoder challenges
+- `GET /api/skills` - Fetch available skills
+- `POST /api/canvas` - Algorithm Design Canvas phases
 
-### Storage Layer
+#### Example Usage
+```bash
+# Start a conversation
+curl -X POST http://localhost:3000/api/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "I want to learn about algorithms"}'
 
-- Store user sessions, problem statements, constraints, ideas, test cases, and code sketches.
-- Use PostgreSQL to persist user progress and allow resuming sessions.
+# Get challenges
+curl "http://localhost:3000/api/challenges?difficulty=easy&limit=5"
+
+# Submit canvas phase
+curl -X POST http://localhost:3000/api/canvas \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phase": "constraints",
+    "content": "Input: array of integers, Output: sorted array",
+    "challengeId": "sorting-challenge"
+  }'
+```
+
+### MCP Integration Details
+
+This project connects to Topcoder's MCP server using:
+- **Protocol**: JSON-RPC 2.0 over HTTP
+- **Authentication**: Session-based with 64-character hex tokens  
+- **Tools Used**:
+  - `query-tc-challenges`: Fetch coding challenges
+  - `query-tc-skills`: Fetch skill categories
+- **Response Format**: Server-Sent Events with nested JSON parsing
+
+### Development & Deployment
+
+#### Development Setup
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Edit .env with your MCP credentials
+npm run dev
+```
+
+#### Hugging Face Spaces Deployment
+```bash
+docker build -t professor-al-gorithm .
+docker run -p 7860:7860 --env-file backend/.env professor-al-gorithm
+```
+
+### Environment Variables
+```bash
+# Required
+MCP_ENDPOINT=https://your-topcoder-mcp-server.com
+MCP_SESSION_TOKEN=64-character-hex-token
+
+# Optional
+PORT=3000
+NODE_ENV=development
+```
+
+### Project Structure
+```
+backend/
+├── src/
+│   ├── server.ts      # Express API server
+│   ├── mcpService.ts  # MCP integration & education logic  
+│   ├── mcpUtils.ts    # MCP utilities (headers, parsing)
+│   └── index.ts       # Console testing interface
+├── package.json
+└── tsconfig.json
+Dockerfile             # Hugging Face Spaces deployment
+```
 
 ### Future Enhancements
 
+- **Frontend Integration**: Web interface for Algorithm Design Canvas
 - **Personalized hints**: Track when a user struggles and provide tailored hints or examples without giving away the solution.
 - **Feedback summaries**: Let the professor summarize key takeaways after each session.
 - **Reflection questions**: Ask users to reflect on their learning after completing a problem.
+- **Persistent Storage**: PostgreSQL for user sessions and progress tracking

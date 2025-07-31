@@ -237,6 +237,56 @@ async function initializeMCPSession(): Promise<boolean> {
   }
 }
 
+// Enhanced API functions for Express endpoints
+export async function processUserQuery(userPrompt: string, conversationId?: string): Promise<string> {
+  // Add conversation context logic here in future
+  return await queryMCP(userPrompt);
+}
+
+export async function getChallenges(params: { limit: number; difficulty: string }): Promise<Challenge[]> {
+  try {
+    if (!sessionId) {
+      const initialized = await initializeMCPSession();
+      if (!initialized) {
+        return [];
+      }
+    }
+
+    const response = await callMCPTool("query-tc-challenges", {
+      limit: params.limit,
+      difficulty: params.difficulty,
+    });
+
+    const parsedData = parseSSEData(response);
+    return (parsedData as Challenge[]) || [];
+  } catch (error) {
+    console.error("Error fetching challenges:", error);
+    return [];
+  }
+}
+
+export async function getSkills(params: { limit: number; category: string }): Promise<Skill[]> {
+  try {
+    if (!sessionId) {
+      const initialized = await initializeMCPSession();
+      if (!initialized) {
+        return [];
+      }
+    }
+
+    const response = await callMCPTool("query-tc-skills", {
+      limit: params.limit,
+      category: params.category,
+    });
+
+    const parsedData = parseSSEData(response);
+    return (parsedData as Skill[]) || [];
+  } catch (error) {
+    console.error("Error fetching skills:", error);
+    return [];
+  }
+}
+
 export async function queryMCP(userPrompt: string): Promise<string> {
   try {
     // Initialize session if not already done
