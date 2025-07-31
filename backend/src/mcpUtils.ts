@@ -15,7 +15,7 @@ export function parseSSEResponse(sseText: string): any {
       if (dataStr.trim()) {
         try {
           return JSON.parse(dataStr);
-        } catch (e) {
+        } catch (_e) {
           console.log("Failed to parse JSON:", dataStr);
         }
       }

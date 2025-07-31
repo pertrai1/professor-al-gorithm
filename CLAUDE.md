@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Common Development Commands
 
 ### Backend Development (TypeScript/Node.js)
+
 ```bash
 cd backend
 npm install                 # Install dependencies
@@ -14,6 +15,7 @@ npm run build               # Compile TypeScript to JavaScript
 ```
 
 ### Testing
+
 Currently no test framework is configured - tests need to be implemented.
 
 ## Architecture Overview
@@ -38,8 +40,9 @@ This is an educational AI agent project called "Professor Al Gorithm" that teach
 ### Algorithm Design Canvas Methodology
 
 The project follows a structured 4-phase approach for teaching problem-solving:
+
 1. **Constraints** - Define problem space, input/output formats, performance requirements
-2. **Ideas** - Brainstorm and evaluate solution approaches  
+2. **Ideas** - Brainstorm and evaluate solution approaches
 3. **Test Cases** - Create comprehensive test scenarios
 4. **Code** - Implement solution structure step-by-step
 
@@ -61,6 +64,7 @@ The project follows a structured 4-phase approach for teaching problem-solving:
 ### Environment Requirements
 
 Create `.env` file in backend directory:
+
 ```
 MCP_ENDPOINT=<topcoder-mcp-endpoint>
 MCP_SESSION_TOKEN=<64-char-hex-token>
@@ -91,6 +95,7 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 ### Future Frontend Integration
 
 The backend is designed to support a web interface with:
+
 - Canvas phase enforcement at UI level
 - Progress tracking across 4-phase methodology
 - Real-time challenge selection from MCP data

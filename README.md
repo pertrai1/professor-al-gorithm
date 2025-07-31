@@ -215,6 +215,7 @@ If the steps were skipped, provide a **wrap-up prompt** to reflect on what was l
 ### API Endpoints
 
 #### Core Endpoints
+
 - `GET /` - Health check and API info
 - `POST /api/chat` - Main conversation interface
 - `GET /api/challenges` - Fetch Topcoder challenges
@@ -222,6 +223,7 @@ If the steps were skipped, provide a **wrap-up prompt** to reflect on what was l
 - `POST /api/canvas` - Algorithm Design Canvas phases
 
 #### Example Usage
+
 ```bash
 # Start a conversation
 curl -X POST http://localhost:3000/api/chat \
@@ -244,8 +246,9 @@ curl -X POST http://localhost:3000/api/canvas \
 ### MCP Integration Details
 
 This project connects to Topcoder's MCP server using:
+
 - **Protocol**: JSON-RPC 2.0 over HTTP
-- **Authentication**: Session-based with 64-character hex tokens  
+- **Authentication**: Session-based with 64-character hex tokens
 - **Tools Used**:
   - `query-tc-challenges`: Fetch coding challenges
   - `query-tc-skills`: Fetch skill categories
@@ -254,6 +257,7 @@ This project connects to Topcoder's MCP server using:
 ### Development & Deployment
 
 #### Development Setup
+
 ```bash
 cd backend
 npm install
@@ -263,12 +267,14 @@ npm run dev
 ```
 
 #### Hugging Face Spaces Deployment
+
 ```bash
 docker build -t professor-al-gorithm .
 docker run -p 7860:7860 --env-file backend/.env professor-al-gorithm
 ```
 
 ### Environment Variables
+
 ```bash
 # Required
 MCP_ENDPOINT=https://your-topcoder-mcp-server.com
@@ -280,11 +286,12 @@ NODE_ENV=development
 ```
 
 ### Project Structure
+
 ```
 backend/
 ├── src/
 │   ├── server.ts      # Express API server
-│   ├── mcpService.ts  # MCP integration & education logic  
+│   ├── mcpService.ts  # MCP integration & education logic
 │   ├── mcpUtils.ts    # MCP utilities (headers, parsing)
 │   └── index.ts       # Console testing interface
 ├── package.json

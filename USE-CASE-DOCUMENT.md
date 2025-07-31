@@ -33,13 +33,11 @@ The Algorithm Design Canvas methodology provides a **structured, repeatable fram
 ### Primary Users
 
 1. **Software Engineering Students** (60% of target audience)
-
    - Computer Science majors preparing for internship/full-time interviews
    - Bootcamp graduates transitioning to technical roles
    - Self-taught developers building algorithmic foundations
 
 2. **Career Transition Professionals** (25% of target audience)
-
    - Experienced developers switching to algorithm-heavy roles
    - Non-CS professionals entering software engineering
    - International students adapting to US interview culture
