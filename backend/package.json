@@ -5,9 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "ts-node src/index.ts",
-    "start": "ts-node src/index.ts",
-    "build": "tsc"
+    "dev": "ts-node src/server.ts",
+    "start": "ts-node src/server.ts",
+    "build": "tsc",
+    "console": "ts-node src/index.ts"
   },
   "repository": {
     "type": "git",
@@ -27,7 +28,11 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "axios": "^1.11.0",
-    "dotenv": "^17.2.1"
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^5.1.0"
   }
 }

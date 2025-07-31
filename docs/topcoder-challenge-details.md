@@ -20,3 +20,34 @@ Creativity: Participants are encouraged to push boundaries and design original, 
 - The submission must be based on a clearly defined use case that addresses a specific problem. Participants should also include a simple, clear document (as part of the submission) that outlines the problem being solved, the rationale behind the chosen use case, and how the AI agent addresses it. This clarity should also be reflected in the agent’s implementation and user experience.
 - Accompanying documentation that clearly explains how to deploy, configure, and run the AI agent on Hugging Face Spaces.
 - An optional demo video (up to 5 minutes) showcasing the agent’s core functionality and how it addresses the defined use case.
+
+### Module 5: Building Agent Logic & MCP Integration (Days 2–3)
+
+**Objective**: Implement the core logic of your agent to communicate effectively with the Topcoder MCP server, retrieve data, and generate intelligent outputs.
+
+- Set up your project structure using a preferred language (Python, TypeScript, etc.)
+- Choose your connection method (SSE or Streamable HTTP) and implement a request handler for MCP
+- Integrate the MCP endpoint(s) you selected in Module 3
+- Process incoming data and prepare meaningful responses
+- Apply prompt engineering principles to enhance agent output quality
+- Ensure your logic runs efficiently on Hugging Face CPU Basic (no GPU dependencies)
+
+**Recommended Resources:**
+
+- [Prompt Engineering Guide](https://github.com/dair-ai/Prompt-Engineering-Guide)
+- Example backend agent using Python with SSE + Hugging Face: [MCP Agent Boilerplate (Python)](https://github.com/lastmile-ai/mcp-agent)
+  - Demonstrates how to:
+    - Connect to Topcoder MCP using SSE
+    - Build an async backend agent using FastAPI
+    - Deploy to Hugging Face with CPU basic config
+  - This is ideal if you're building a backend-only agent with no frontend SDK involved.
+- EventSource API Reference: MDN Docs Guide](https://github.com/dair-ai/Prompt-Engineering-Guide)
+- Example SSE integration (React or Node): [MDN EventSource Docs](https://developer.mozilla.org/en-US/docs/Web/API/EventSource)
+
+**Deliverable:**
+
+- A backend agent logic module that:
+  - Successfully connects to and queries the MCP server
+  - Returns usable responses to the frontend
+  - Demonstrates use of at least one real MCP tool or endpoint
+- A brief explanation (in your README) of how the MCP connection is implemented and which tools it uses
