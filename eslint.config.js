@@ -85,6 +85,18 @@ export default [
       "no-debugger": "error",
       "prefer-const": "error",
       "no-var": "error",
+
+      complexity: ["error", 10], // Limit complexity"
+      "max-depth": ["error", 5], // Maximum nesting depth
+      "max-lines": [
+        "error",
+        { max: 300, skipBlankLines: true, skipComments: true },
+      ], // Maximum lines per file
+      "max-lines-per-function": [
+        "error",
+        { max: 80, skipBlankLines: true, skipComments: true },
+      ], // Maximum lines per function
+      "max-params": ["error", 3], // Maximum parameters per function
     },
   },
 
