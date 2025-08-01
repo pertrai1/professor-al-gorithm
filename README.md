@@ -1,4 +1,16 @@
-# Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor
+---
+title: Professor Al Gorithm
+emoji: 🎓
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: 4.0.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
+# Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor 🎓
 
 ![Professor Al Gorithm Logo](logo-light.png)
 

@@ -59,7 +59,7 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-// Get available challenges
+// Get available challenges - GET endpoint
 app.get("/api/challenges", async (req, res) => {
   try {
     const { limit = 5, difficulty = "easy" } = req.query;
@@ -82,10 +82,56 @@ app.get("/api/challenges", async (req, res) => {
   }
 });
 
-// Get available skills
+// Get available challenges - POST endpoint for Gradio
+app.post("/api/challenges", async (req, res) => {
+  try {
+    const { limit = 5, difficulty = "easy" } = req.body;
+
+    const challenges = await getChallenges({
+      limit: parseInt(limit as string),
+      difficulty: difficulty as string,
+    });
+
+    res.json({
+      challenges,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching challenges:", error);
+    res.status(500).json({
+      error: "Failed to fetch challenges",
+      challenges: [],
+    });
+  }
+});
+
+// Get available skills - GET endpoint
 app.get("/api/skills", async (req, res) => {
   try {
     const { limit = 10, category = "algorithms" } = req.query;
+
+    const skills = await getSkills({
+      limit: parseInt(limit as string),
+      category: category as string,
+    });
+
+    res.json({
+      skills,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching skills:", error);
+    res.status(500).json({
+      error: "Failed to fetch skills",
+      skills: [],
+    });
+  }
+});
+
+// Get available skills - POST endpoint for Gradio
+app.post("/api/skills", async (req, res) => {
+  try {
+    const { limit = 10, category = "algorithms" } = req.body;
 
     const skills = await getSkills({
       limit: parseInt(limit as string),
