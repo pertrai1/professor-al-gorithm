@@ -51,3 +51,15 @@ Creativity: Participants are encouraged to push boundaries and design original, 
   - Returns usable responses to the frontend
   - Demonstrates use of at least one real MCP tool or endpoint
 - A brief explanation (in your README) of how the MCP connection is implemented and which tools it uses
+
+### Module 6: UI/UX Development (Days 2–3)
+
+**Objective:** Create an accessible, intuitive interface to showcase your AI agent’s capabilities.
+
+- Choose a simple UI framework such as Gradio, Streamlit, or a minimal HTML/JS frontend (Gradio recommended for ease of Hugging Face integration)
+- Link the UI to your backend logic (built in Module 5)
+- Focus on making input fields and output displays clear and accessible
+- Provide contextual labels, input placeholders, and output formatting where helpful
+- Consider adding a loading indicator or progress feedback if MCP requests take time
+
+**Deliverable:** A lightweight, working UI prototype that allows users to interact with your agent and see live responses from the MCP server
