@@ -205,12 +205,22 @@ If the steps were skipped, provide a **wrap-up prompt** to reflect on what was l
 
 ## System Architecture
 
-### Backend Services (Current Implementation)
+### Full-Stack Implementation
 
-- **Express.js API Server**: RESTful endpoints for frontend communication
-- **MCP Integration**: Connects to Topcoder MCP server for real challenges and skills
-- **Educational Logic**: Algorithm Design Canvas methodology implementation
-- **Session Management**: Handles MCP authentication and conversation state
+#### Frontend (Gradio Web Interface)
+
+- **Interactive Canvas Interface**: 4-phase tabbed interface guiding users through Algorithm Design Canvas
+- **Real-time Challenge Integration**: Fetches live coding challenges from Topcoder via MCP
+- **Educational Guidance System**: Socratic questioning approach with phase-specific guidance
+- **Responsive Design**: Clean, accessible interface optimized for learning
+- **Async Operations**: Non-blocking API calls with loading indicators and error handling
+
+#### Backend Services
+
+- **Express.js API Server**: RESTful endpoints for frontend communication with CORS support
+- **MCP Integration**: Connects to Topcoder MCP server for real challenges and skills data
+- **Educational Logic**: Algorithm Design Canvas methodology implementation with phase validation
+- **Session Management**: Handles MCP authentication and conversation state tracking
 
 ### API Endpoints
 
@@ -258,20 +268,63 @@ This project connects to Topcoder's MCP server using:
 
 #### Development Setup
 
+**Prerequisites:**
+
+- Node.js 18+ and npm
+- Python 3.9+
+- MCP server credentials
+
+**Quick Start:**
+
 ```bash
+# Backend setup
 cd backend
 npm install
 cp .env.example .env
 # Edit .env with your MCP credentials
-npm run dev
+
+# Frontend setup
+pip install -r requirements.txt
+
+# Option 1: Manual startup (recommended for development)
+# Terminal 1 - Start backend
+cd backend && npm run dev
+
+# Terminal 2 - Start frontend (after backend is running)
+python app.py
+
+# Option 2: Automated startup
+chmod +x start.sh
+./start.sh
 ```
+
+**Access the Application:**
+
+- Frontend: http://localhost:7860 (Gradio interface)
+- Backend API: http://localhost:3000 (REST endpoints)
 
 #### Hugging Face Spaces Deployment
 
+**Multi-Service Container Setup:**
+The application uses a multi-stage Docker build that runs both backend (Node.js) and frontend (Python/Gradio) services:
+
 ```bash
+# Local Docker testing
 docker build -t professor-al-gorithm .
 docker run -p 7860:7860 --env-file backend/.env professor-al-gorithm
+
+# The container automatically:
+# 1. Starts the Express.js backend on port 3000
+# 2. Waits for backend readiness
+# 3. Starts the Gradio frontend on port 7860
+# 4. Exposes the frontend interface for users
 ```
+
+**Environment Configuration:**
+Set the following secrets in your Hugging Face Space:
+
+- `MCP_ENDPOINT`: Your Topcoder MCP server URL
+- `MCP_SESSION_TOKEN`: 64-character hex authentication token
 
 ### Environment Variables
 
@@ -288,21 +341,39 @@ NODE_ENV=development
 ### Project Structure
 
 ```
-backend/
-├── src/
-│   ├── server.ts      # Express API server
-│   ├── mcpService.ts  # MCP integration & education logic
-│   ├── mcpUtils.ts    # MCP utilities (headers, parsing)
-│   └── index.ts       # Console testing interface
-├── package.json
-└── tsconfig.json
-Dockerfile             # Hugging Face Spaces deployment
+.
+├── app.py                 # Gradio frontend application
+├── requirements.txt       # Python dependencies for frontend
+├── start.sh              # Development startup script
+├── Dockerfile            # Multi-stage build for Hugging Face Spaces
+├── backend/
+│   ├── src/
+│   │   ├── server.ts     # Express API server
+│   │   ├── mcpService.ts # MCP integration & education logic
+│   │   ├── mcpUtils.ts   # MCP utilities (headers, parsing)
+│   │   └── index.ts      # Console testing interface
+│   ├── package.json      # Node.js dependencies
+│   ├── tsconfig.json     # TypeScript configuration
+│   └── .env              # Environment variables (not committed)
+├── docs/
+│   └── topcoder-challenge-details.md  # Challenge documentation
+├── CLAUDE.md             # Development guidelines for Claude Code
+└── README.md             # This file
 ```
+
+### Current Features
+
+✅ **Web Interface**: Complete Gradio-based frontend with interactive Algorithm Design Canvas  
+✅ **Real-time MCP Integration**: Live Topcoder challenges and skills data via MCP server  
+✅ **4-Phase Canvas Methodology**: Structured progression through Constraints → Ideas → Tests → Code  
+✅ **Educational Guidance**: Socratic questioning approach with phase-specific hints  
+✅ **Multi-Service Deployment**: Dockerized full-stack application for Hugging Face Spaces  
+✅ **Error Handling**: Graceful fallbacks when MCP services are unavailable
 
 ### Future Enhancements
 
-- **Frontend Integration**: Web interface for Algorithm Design Canvas
-- **Personalized hints**: Track when a user struggles and provide tailored hints or examples without giving away the solution.
-- **Feedback summaries**: Let the professor summarize key takeaways after each session.
-- **Reflection questions**: Ask users to reflect on their learning after completing a problem.
-- **Persistent Storage**: PostgreSQL for user sessions and progress tracking
+- **Personalized Learning**: Track user struggles and provide tailored hints without revealing solutions
+- **Session Persistence**: Save progress across sessions with user authentication
+- **Advanced Analytics**: Learning progress tracking and performance insights
+- **Extended MCP Tools**: Additional challenge categories and skill assessments
+- **Collaborative Features**: Peer learning and discussion capabilities
