@@ -24,6 +24,9 @@ MCP_ENDPOINT = os.getenv("MCP_ENDPOINT")
 MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
 
 print("🎓 Professor Al Gorithm starting...")
+print(f"🔍 Debug - MCP_ENDPOINT: {MCP_ENDPOINT[:50] if MCP_ENDPOINT else 'None'}...")
+print(f"🔍 Debug - MCP_SESSION_TOKEN: {'***' + MCP_SESSION_TOKEN[-10:] if MCP_SESSION_TOKEN else 'None'}")
+
 if MCP_ENDPOINT and MCP_SESSION_TOKEN:
     print(f"🔗 MCP integration enabled: {MCP_ENDPOINT}")
 else:
@@ -143,15 +146,22 @@ class ProfessorAlGorithm:
         if mcp_client:
             try:
                 print(f"🔍 Fetching {difficulty} challenges from Topcoder MCP...")
+                print(f"🔗 MCP endpoint: {mcp_client.endpoint}")
                 mcp_data = await mcp_client.get_challenges(difficulty, 5)
+                print(f"📊 MCP response: {type(mcp_data)} - {str(mcp_data)[:200] if mcp_data else 'None'}...")
                 
                 if mcp_data and 'challenges' in mcp_data:
+                    print(f"✅ Got {len(mcp_data['challenges'])} challenges from MCP")
                     return self._format_mcp_challenges(mcp_data, difficulty)
                 else:
-                    print("⚠️ MCP returned no challenges, using fallback")
+                    print(f"⚠️ MCP returned no challenges: {mcp_data}")
                     
             except Exception as e:
                 print(f"❌ MCP request failed: {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print("🚫 No MCP client available")
         
         # Fallback to educational content
         print(f"📚 Using educational {difficulty} challenges")
