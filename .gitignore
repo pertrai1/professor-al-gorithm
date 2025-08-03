@@ -201,3 +201,5 @@ MANIFEST
 *~
 *.bak
 *.tmp
+
+.claude
