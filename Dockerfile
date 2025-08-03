@@ -17,15 +17,18 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy and install backend dependencies (production only for smaller image)
+# Copy and install backend dependencies 
 COPY backend/package*.json backend/
-RUN cd backend && npm ci --only=production && npm cache clean --force
-
-# Install TypeScript and ts-node globally (required for production runtime)
-RUN npm install -g typescript ts-node && npm cache clean --force
+RUN cd backend && npm ci && npm cache clean --force
 
 # Copy backend source code
 COPY backend/ backend/
+
+# Build TypeScript code
+RUN cd backend && npm run build
+
+# Remove dev dependencies after build (keep image smaller)
+RUN cd backend && npm prune --production
 
 # Copy frontend files
 COPY app.py .
