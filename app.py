@@ -69,8 +69,19 @@ class MCPClient:
                         # Parse Server-Sent Events response
                         text = await response.text()
                         return self._parse_sse_response(text)
+                    elif response.status == 503:
+                        print(f"MCP server unavailable (503) - service may be down or overloaded")
+                        return None
+                    elif response.status == 401:
+                        print(f"MCP authentication failed (401) - check session token")
+                        return None
+                    elif response.status == 429:
+                        print(f"MCP rate limited (429) - too many requests")
+                        return None
                     else:
                         print(f"MCP request failed with status {response.status}")
+                        response_text = await response.text()
+                        print(f"Response body: {response_text[:200]}...")
                         return None
                         
         except Exception as e:
