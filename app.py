@@ -12,18 +12,119 @@ Module 7 Enhanced Version: End-to-End Testing & Debugging Features
 """
 
 import gradio as gr
-import requests
-import json
 import os
 from typing import Dict, Any, Optional, Tuple
 import asyncio
-import aiohttp
 import time
+import aiohttp
+import json
 
-# Configuration - Force 127.0.0.1 for Hugging Face Spaces
-BACKEND_URL = "http://127.0.0.1:3000"  # Force this for now
-print(f"🔗 Backend URL configured as: {BACKEND_URL}")
-print(f"🌍 Environment variables: SPACE_ID={os.getenv('SPACE_ID', 'None')}, GRADIO_SERVER_NAME={os.getenv('GRADIO_SERVER_NAME', 'None')}")
+# Configuration
+MCP_ENDPOINT = os.getenv("MCP_ENDPOINT")
+MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
+
+print("🎓 Professor Al Gorithm starting...")
+if MCP_ENDPOINT and MCP_SESSION_TOKEN:
+    print(f"🔗 MCP integration enabled: {MCP_ENDPOINT}")
+else:
+    print("📚 Running in offline mode - using educational content only")
+
+class MCPClient:
+    """Python MCP client for Topcoder integration"""
+    
+    def __init__(self, endpoint: str, session_token: str):
+        self.endpoint = endpoint
+        self.session_token = session_token
+        self.session_initialized = False
+    
+    async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make MCP request using JSON-RPC 2.0 over Server-Sent Events"""
+        if not self.endpoint or not self.session_token:
+            return None
+            
+        try:
+            headers = {
+                'Content-Type': 'application/json',
+                'X-MCP-Session': self.session_token,
+                'Accept': 'text/plain'
+            }
+            
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": arguments
+                },
+                "id": f"req_{int(time.time() * 1000)}"
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        # Parse Server-Sent Events response
+                        text = await response.text()
+                        return self._parse_sse_response(text)
+                    else:
+                        print(f"MCP request failed with status {response.status}")
+                        return None
+                        
+        except Exception as e:
+            print(f"MCP request error: {e}")
+            return None
+    
+    def _parse_sse_response(self, sse_text: str) -> Optional[Dict[str, Any]]:
+        """Parse Server-Sent Events response and extract JSON data"""
+        try:
+            lines = sse_text.strip().split('\n')
+            for line in lines:
+                if line.startswith('data: '):
+                    data_str = line[6:]  # Remove 'data: ' prefix
+                    try:
+                        # Parse the JSON (might be double-encoded)
+                        data = json.loads(data_str)
+                        if isinstance(data, dict) and 'result' in data:
+                            result = data['result']
+                            if isinstance(result, dict) and 'content' in result:
+                                content = result['content']
+                                if isinstance(content, list) and len(content) > 0:
+                                    # Extract the actual data from MCP response
+                                    first_content = content[0]
+                                    if isinstance(first_content, dict) and 'text' in first_content:
+                                        # Sometimes the text is double-encoded JSON
+                                        text_content = first_content['text']
+                                        try:
+                                            return json.loads(text_content)
+                                        except:
+                                            return {'raw_text': text_content}
+                            return result
+                        return data
+                    except json.JSONDecodeError:
+                        continue
+            return None
+        except Exception as e:
+            print(f"SSE parsing error: {e}")
+            return None
+    
+    async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
+        """Get challenges from Topcoder MCP"""
+        return await self._make_mcp_request("query-tc-challenges", {
+            "difficulty": difficulty,
+            "limit": limit
+        })
+    
+    async def get_skills(self, category: str = "algorithms", limit: int = 10) -> Optional[Dict[str, Any]]:
+        """Get skills from Topcoder MCP"""
+        return await self._make_mcp_request("query-tc-skills", {
+            "category": category,
+            "limit": limit
+        })
+
+# Initialize MCP client
+mcp_client = None
+if MCP_ENDPOINT and MCP_SESSION_TOKEN:
+    mcp_client = MCPClient(MCP_ENDPOINT, MCP_SESSION_TOKEN)
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
@@ -33,121 +134,124 @@ class ProfessorAlGorithm:
         self.session_data = {}
     
     async def get_challenges(self, difficulty: str = "easy") -> str:
-        """Fetch coding challenges from MCP server via backend with retry logic"""
-        try:
-            # Validate input
-            if difficulty not in ['easy', 'medium', 'hard']:
-                difficulty = 'easy'
+        """Get coding challenges from Topcoder MCP or fallback content"""
+        # Validate input
+        if difficulty not in ['easy', 'medium', 'hard']:
+            difficulty = 'easy'
+        
+        # Try MCP first if available
+        if mcp_client:
+            try:
+                print(f"🔍 Fetching {difficulty} challenges from Topcoder MCP...")
+                mcp_data = await mcp_client.get_challenges(difficulty, 5)
                 
-            # Retry logic for Hugging Face Spaces startup
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    timeout = aiohttp.ClientTimeout(total=30)  # Reduced timeout per attempt
+                if mcp_data and 'challenges' in mcp_data:
+                    return self._format_mcp_challenges(mcp_data, difficulty)
+                else:
+                    print("⚠️ MCP returned no challenges, using fallback")
                     
-                    async with aiohttp.ClientSession(timeout=timeout) as session:
-                        async with session.post(
-                            f"{BACKEND_URL}/api/challenges",
-                            json={"difficulty": difficulty, "limit": 5},
-                            headers={'Content-Type': 'application/json'}
-                        ) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                return self._format_challenges_for_display(data)
-                            elif response.status == 400:
-                                error_data = await response.json() if response.content_type == 'application/json' else {}
-                                return f"Invalid request: {error_data.get('error', 'Bad request')}"
-                            elif response.status == 408:
-                                return "⏰ Request timed out. The system may be busy. Please try again in a moment."
-                            elif response.status >= 500:
-                                if attempt < max_retries - 1:
-                                    await asyncio.sleep(2)  # Wait before retry
-                                    continue
-                                return "🔧 Server is temporarily unavailable. Using fallback challenges...\n\n" + self._get_fallback_challenges()
-                            else:
-                                return f"Unexpected error (Status {response.status}). Using fallback challenges...\n\n" + self._get_fallback_challenges()
-                                
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < max_retries - 1:
-                        print(f"Connection attempt {attempt + 1} failed: {e}. Retrying...")
-                        await asyncio.sleep(2)  # Wait before retry
-                        continue
-                    else:
-                        print(f"❌ Backend connection failed completely: {str(e)}")
-                        print(f"🔗 Attempted to connect to: {BACKEND_URL}")
-                        return f"🔧 Backend service unavailable. Using offline mode.\n\n" + self._get_fallback_challenges()
-                        
-        except Exception as e:
-            print(f"Unexpected error in get_challenges: {e}")  # Log for debugging
-            return "❌ An unexpected error occurred. Using fallback challenges...\n\n" + self._get_fallback_challenges()
+            except Exception as e:
+                print(f"❌ MCP request failed: {e}")
+        
+        # Fallback to educational content
+        print(f"📚 Using educational {difficulty} challenges")
+        await asyncio.sleep(0.5)  # Simulate fetch delay
+        return self._get_fallback_challenges(difficulty)
     
-    def _get_fallback_challenges(self) -> str:
-        """Provide fallback challenges when MCP is unavailable"""
-        return """## Sample Coding Challenges
-
-**🎯 Two Sum Problem**
-Difficulty: Easy
-Description: Given an array of integers and a target sum, find two numbers that add up to the target.
-
-**🎯 Valid Parentheses**
-Difficulty: Easy  
-Description: Given a string containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.
-
-**🎯 Maximum Subarray**
-Difficulty: Medium
-Description: Find the contiguous subarray within a one-dimensional array of numbers that has the largest sum.
-
-💡 **Pro Tip**: Start with the easiest problem and work your way up!"""
+    def _get_fallback_challenges(self, difficulty: str = "easy") -> str:
+        """Provide educational challenges based on difficulty level"""
+        
+        challenges_by_difficulty = {
+            'easy': [
+                "**🎯 Two Sum Problem**\nGiven an array of integers and a target sum, find two numbers that add up to the target.\n*Skills: Hash tables, array traversal*",
+                "**🎯 Valid Parentheses**\nGiven a string containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.\n*Skills: Stack data structure, string processing*",
+                "**🎯 Palindrome Check**\nDetermine if a given string reads the same forward and backward.\n*Skills: Two pointers technique, string manipulation*",
+                "**🎯 Merge Two Sorted Lists**\nMerge two sorted linked lists and return it as a new sorted list.\n*Skills: Linked lists, merge algorithms*",
+                "**🎯 Remove Duplicates**\nRemove duplicates from a sorted array in-place.\n*Skills: Two pointers, array manipulation*"
+            ],
+            'medium': [
+                "**🎯 Maximum Subarray (Kadane's Algorithm)**\nFind the contiguous subarray within a one-dimensional array that has the largest sum.\n*Skills: Dynamic programming, optimization*",
+                "**🎯 Longest Substring Without Repeating Characters**\nFind the length of the longest substring without repeating characters.\n*Skills: Sliding window, hash maps*",
+                "**🎯 Binary Tree Level Order Traversal**\nReturn the level order traversal of a binary tree's nodes' values.\n*Skills: BFS, queue data structure, trees*",
+                "**🎯 3Sum Problem**\nFind all unique triplets in an array that sum to zero.\n*Skills: Two pointers, sorting, array manipulation*",
+                "**🎯 Rotated Sorted Array Search**\nSearch for a target value in a rotated sorted array.\n*Skills: Binary search, modified algorithms*"
+            ],
+            'hard': [
+                "**🎯 Median of Two Sorted Arrays**\nFind the median of two sorted arrays with optimal time complexity.\n*Skills: Binary search, divide and conquer*",
+                "**🎯 N-Queens Problem**\nPlace N queens on an N×N chessboard so that no two queens attack each other.\n*Skills: Backtracking, constraint satisfaction*",
+                "**🎯 Word Ladder**\nFind the shortest transformation sequence from a start word to an end word.\n*Skills: BFS, graph algorithms, string manipulation*",
+                "**🎯 Serialize and Deserialize Binary Tree**\nDesign an algorithm to serialize and deserialize a binary tree.\n*Skills: Tree traversal, string parsing, design patterns*",
+                "**🎯 Regular Expression Matching**\nImplement regular expression matching with support for '.' and '*'.\n*Skills: Dynamic programming, recursion, pattern matching*"
+            ]
+        }
+        
+        selected_challenges = challenges_by_difficulty.get(difficulty, challenges_by_difficulty['easy'])
+        
+        result = f"## 🎯 {difficulty.title()} Coding Challenges\n\n"
+        for i, challenge in enumerate(selected_challenges, 1):
+            result += f"{i}. {challenge}\n\n"
+        
+        result += f"💡 **Learning Focus**: These {difficulty} challenges help you practice fundamental problem-solving patterns!\n"
+        result += "🎨 **Next Step**: Choose one challenge and work through it using the Algorithm Design Canvas below."
+        
+        return result
+    
+    def _format_mcp_challenges(self, mcp_data: Dict[str, Any], difficulty: str) -> str:
+        """Format MCP challenge data for display"""
+        try:
+            challenges = mcp_data.get('challenges', [])
+            if not challenges:
+                return self._get_fallback_challenges(difficulty)
+            
+            result = f"## 🎯 Topcoder {difficulty.title()} Challenges\n\n"
+            
+            for i, challenge in enumerate(challenges[:5], 1):
+                name = challenge.get('name', f'Challenge #{i}')
+                track = challenge.get('track', 'Programming')
+                description = challenge.get('description', 'No description available')
+                
+                # Truncate long descriptions
+                if len(description) > 200:
+                    description = description[:200] + "..."
+                
+                result += f"{i}. **{name}**\n"
+                result += f"   📚 Track: {track}\n"
+                result += f"   📝 {description}\n\n"
+            
+            result += f"🌟 **Real Challenges**: These are actual {difficulty} challenges from Topcoder!\n"
+            result += "🎨 **Next Step**: Choose one challenge and work through it using the Algorithm Design Canvas below."
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error formatting MCP challenges: {e}")
+            return self._get_fallback_challenges(difficulty)
     
     async def get_skills(self, category: str = "algorithms") -> str:
-        """Fetch skills data from MCP server via backend with retry logic"""
-        try:
-            # Validate input
-            valid_categories = ['algorithms', 'data-structures', 'dynamic-programming', 'graphs']
-            if category not in valid_categories:
-                category = 'algorithms'
+        """Get skills data from Topcoder MCP or fallback content"""
+        # Validate input
+        valid_categories = ['algorithms', 'data-structures', 'dynamic-programming', 'graphs']
+        if category not in valid_categories:
+            category = 'algorithms'
+        
+        # Try MCP first if available
+        if mcp_client:
+            try:
+                print(f"🔍 Fetching {category} skills from Topcoder MCP...")
+                mcp_data = await mcp_client.get_skills(category, 10)
                 
-            # Retry logic for Hugging Face Spaces startup
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    timeout = aiohttp.ClientTimeout(total=30)  # Reduced timeout per attempt
+                if mcp_data and 'skills' in mcp_data:
+                    return self._format_mcp_skills(mcp_data, category)
+                else:
+                    print("⚠️ MCP returned no skills, using fallback")
                     
-                    async with aiohttp.ClientSession(timeout=timeout) as session:
-                        async with session.post(
-                            f"{BACKEND_URL}/api/skills",
-                            json={"category": category, "limit": 10},
-                            headers={'Content-Type': 'application/json'}
-                        ) as response:
-                            if response.status == 200:
-                                data = await response.json()
-                                return self._format_skills_for_display(data)
-                            elif response.status == 400:
-                                error_data = await response.json() if response.content_type == 'application/json' else {}
-                                return f"Invalid request: {error_data.get('error', 'Bad request')}"
-                            elif response.status == 408:
-                                return "⏰ Request timed out. The system may be busy. Please try again in a moment."
-                            elif response.status >= 500:
-                                if attempt < max_retries - 1:
-                                    await asyncio.sleep(2)  # Wait before retry
-                                    continue
-                                return "🔧 Server is temporarily unavailable. Using fallback skills...\n\n" + self._get_fallback_skills(category)
-                            else:
-                                return f"Unexpected error (Status {response.status}). Using fallback skills...\n\n" + self._get_fallback_skills(category)
-                                
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < max_retries - 1:
-                        print(f"Connection attempt {attempt + 1} failed: {e}. Retrying...")
-                        await asyncio.sleep(2)  # Wait before retry
-                        continue
-                    else:
-                        print(f"❌ Backend connection failed completely: {str(e)}")
-                        print(f"🔗 Attempted to connect to: {BACKEND_URL}")
-                        return f"🔧 Backend service unavailable. Using offline mode.\n\n" + self._get_fallback_skills(category)
-                        
-        except Exception as e:
-            print(f"Unexpected error in get_skills: {e}")  # Log for debugging
-            return "❌ An unexpected error occurred. Using fallback skills...\n\n" + self._get_fallback_skills(category)
+            except Exception as e:
+                print(f"❌ MCP request failed: {e}")
+        
+        # Fallback to educational content
+        print(f"📚 Using educational {category} skills")
+        await asyncio.sleep(0.5)  # Simulate fetch delay
+        return self._get_fallback_skills(category)
     
     def _get_fallback_skills(self, category: str = "algorithms") -> str:
         """Provide fallback skills when MCP is unavailable"""
@@ -184,6 +288,44 @@ Description: Find the contiguous subarray within a one-dimensional array of numb
         
         skills = skills_by_category.get(category, skills_by_category['algorithms'])
         return f"## Recommended {category.title()} Skills to Practice\n\n" + "\n".join(f"• {skill}" for skill in skills)
+    
+    def _format_mcp_skills(self, mcp_data: Dict[str, Any], category: str) -> str:
+        """Format MCP skills data for display"""
+        try:
+            skills = mcp_data.get('skills', [])
+            if not skills:
+                return self._get_fallback_skills(category)
+            
+            result = f"## 🛠️ Topcoder {category.title()} Skills\n\n"
+            
+            for i, skill in enumerate(skills[:8], 1):
+                name = skill.get('name', f'Skill #{i}')
+                description = skill.get('description', 'No description available')
+                category_info = skill.get('category', {})
+                
+                if isinstance(category_info, dict):
+                    cat_name = category_info.get('name', 'Unknown')
+                else:
+                    cat_name = str(category_info) if category_info else 'Unknown'
+                
+                # Truncate long descriptions
+                if len(description) > 150:
+                    description = description[:150] + "..."
+                
+                result += f"• **{name}**\n"
+                result += f"  📂 Category: {cat_name}\n"
+                if description and description != 'No description available':
+                    result += f"  📖 {description}\n"
+                result += "\n"
+            
+            result += f"🌟 **Real Skills**: These are actual {category} skills from Topcoder's platform!\n"
+            result += "💡 **Practice Tip**: Focus on one skill at a time and solve related challenges."
+            
+            return result
+            
+        except Exception as e:
+            print(f"Error formatting MCP skills: {e}")
+            return self._get_fallback_skills(category)
     
     def _format_challenges_for_display(self, data: Dict[str, Any]) -> str:
         """Format challenge data for educational display"""
