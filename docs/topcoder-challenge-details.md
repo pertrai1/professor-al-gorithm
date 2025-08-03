@@ -75,3 +75,15 @@ Creativity: Participants are encouraged to push boundaries and design original, 
 - Profile and optimize response time, agent feedback, and loading states
 
 **Deliverable:** A stable, polished, and bug-free agent that reliably handles diverse inputs and edge scenarios
+
+### Module 8: Deployment on Hugging Face Spaces (Days 1–2)
+
+**Objective:** Deploy your agent to a live environment and ensure it's accessible and stable.
+
+- Prepare `requirements.txt`
+- Prepare `README.md` with necessary dependencies and setup instructions
+- Push your project to a new or existing Hugging Face Space
+- Confirm successful deployment on the default CPU Basic hardware (no GPU)
+- Perform smoke testing to validate end-to-end functionality
+
+**Deliverable:** A fully deployed Hugging Face Space (public link) or a repository that’s ready to be deployed without additional changes

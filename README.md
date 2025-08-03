@@ -303,28 +303,70 @@ chmod +x start.sh
 - Frontend: http://localhost:7860 (Gradio interface)
 - Backend API: http://localhost:3000 (REST endpoints)
 
-#### Hugging Face Spaces Deployment
+#### Hugging Face Spaces Deployment (Module 8)
+
+**Prerequisites for Deployment:**
+
+- A Hugging Face account
+- MCP server credentials (endpoint URL and session token)
+- This repository ready to deploy
+
+**Deployment Steps:**
+
+1. **Create a New Hugging Face Space:**
+   - Go to https://huggingface.co/new-space
+   - Choose "Gradio" as the SDK
+   - Select "CPU Basic" (free tier) - **no GPU required**
+   - Set visibility as desired (public/private)
+
+2. **Upload Project Files:**
+   - Upload all files from this repository to your Space
+   - Ensure `requirements.txt`, `Dockerfile`, and `app.py` are in the root directory
+   - Include the entire `backend/` directory with all source files
+
+3. **Configure Environment Variables:**
+   Set the following secrets in your Hugging Face Space settings:
+
+   ```
+   MCP_ENDPOINT=https://your-topcoder-mcp-server.com
+   MCP_SESSION_TOKEN=your-64-character-hex-token
+   ```
+
+4. **Automatic Deployment:**
+   - Hugging Face Spaces will automatically build and deploy using the Dockerfile
+   - The build process installs both Node.js and Python dependencies
+   - No additional configuration needed - runs on CPU Basic hardware
 
 **Multi-Service Container Setup:**
 The application uses a multi-stage Docker build that runs both backend (Node.js) and frontend (Python/Gradio) services:
 
 ```bash
-# Local Docker testing
+# Local Docker testing (optional)
 docker build -t professor-al-gorithm .
 docker run -p 7860:7860 --env-file backend/.env professor-al-gorithm
 
 # The container automatically:
 # 1. Starts the Express.js backend on port 3000
-# 2. Waits for backend readiness
+# 2. Waits for backend readiness (10 second delay)
 # 3. Starts the Gradio frontend on port 7860
 # 4. Exposes the frontend interface for users
 ```
 
-**Environment Configuration:**
-Set the following secrets in your Hugging Face Space:
+**Deployment Validation (Smoke Testing):**
+After deployment, verify the following functionality:
 
-- `MCP_ENDPOINT`: Your Topcoder MCP server URL
-- `MCP_SESSION_TOKEN`: 64-character hex authentication token
+1. **Frontend Access:** Open your Hugging Face Space URL - should show the Professor Al Gorithm interface
+2. **Backend Health:** The interface should load without errors (backend is running)
+3. **MCP Integration:** Try fetching challenges or skills - should return data from Topcoder
+4. **Canvas Functionality:** Navigate through all 4 phases (Constraints → Ideas → Tests → Code)
+5. **Error Handling:** Test with invalid inputs to ensure graceful error messages
+
+**Troubleshooting:**
+
+- If the Space fails to build, check the logs in the Hugging Face Spaces interface
+- Ensure MCP credentials are correctly set in Space secrets
+- Verify all dependencies are listed in `requirements.txt` and `backend/package.json`
+- The application requires ~2GB RAM (within CPU Basic limits)
 
 ### Testing
 

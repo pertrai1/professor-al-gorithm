@@ -354,12 +354,15 @@ The Gradio frontend (`app.py`) provides:
 
 ### Deployment Architecture
 
-#### Hugging Face Spaces Deployment
+#### Hugging Face Spaces Deployment (Module 8)
 
 - **Multi-service container**: Both Node.js backend and Python frontend in single Docker image
 - **Service orchestration**: Backend starts first, frontend connects after startup delay
 - **Environment variables**: MCP credentials configured via Hugging Face Spaces secrets
 - **Port configuration**: Backend on 3000, Gradio frontend on 7860 (Spaces standard)
+- **CPU Basic optimized**: Runs efficiently on free tier hardware (no GPU required)
+- **Health checks**: Container health monitoring and startup validation
+- **Deployment ready**: Complete deployment instructions in README.md Module 8 section
 
 ### Project Structure
 
