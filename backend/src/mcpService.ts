@@ -1,332 +1,90 @@
-import axios from "axios";
-import dotenv from "dotenv";
+/**
+ * Main MCP service with educational functionality
+ */
 
+import { callMCPTool, initializeMCPSession, getSessionId } from "./mcpCore";
 import {
-  createMCPHeaders,
-  createMCPInitPayload,
-  extractSessionId,
-  createMCPSessionHeaders,
-} from "./mcpUtils";
-
-dotenv.config();
-
-// Type definitions for MCP responses
-interface MCPToolParams {
-  [key: string]: string | number | boolean;
-}
-
-interface MCPResponse {
-  result?: MCPResult;
-  error?: MCPError;
-  jsonrpc: string;
-  id: number;
-}
-
-interface MCPResult {
-  content?: MCPContent[];
-  structuredContent?: StructuredContent;
-}
-
-interface MCPContent {
-  type: string;
-  text: string;
-}
-
-interface MCPError {
-  code: number;
-  message: string;
-}
-
-interface StructuredContent {
-  page: number;
-  pageSize: number;
-  total: number;
-  data: Challenge[] | Skill[];
-}
-
-interface Challenge {
-  id: string;
-  name: string;
-  track?: string;
-  status?: string;
-  description?: string;
-  typeId?: string;
-  trackId?: string;
-  skills?: ChallengeSkill[];
-  // Add other challenge properties as needed
-}
-
-interface Skill {
-  id: string;
-  name: string;
-  description?: string;
-  category?: SkillCategory;
-}
-
-interface SkillCategory {
-  id: string;
-  name: string;
-  description?: string;
-}
-
-interface ChallengeSkill {
-  name: string;
-  id: string;
-  category: SkillCategory;
-}
-
-const MCP_ENDPOINT = process.env.MCP_ENDPOINT;
-const MCP_SESSION_TOKEN = process.env.MCP_SESSION_TOKEN;
-
-let sessionId: string | null = null;
+  parseSSEData,
+  formatChallengesForLearning,
+  formatSkillsForLearning,
+} from "./mcpFormatters";
+import {
+  validateMCPParams,
+  hasValidData,
+  filterValidItems,
+  createFallbackContent,
+} from "./mcpHelpers";
+import { Challenge, Skill, MCPResponse } from "./mcpTypes";
 
 /**
- * Call a specific MCP tool with parameters
+ * Process user query with MCP integration
  */
-async function callMCPTool(
-  toolName: string,
-  params: MCPToolParams
-): Promise<MCPResponse | null> {
-  if (!MCP_ENDPOINT || !MCP_SESSION_TOKEN || !sessionId) {
-    throw new Error("MCP session not properly initialized");
+async function processUserQuery(userPrompt: string): Promise<string> {
+  if (!userPrompt || typeof userPrompt !== "string") {
+    return "I need a question or problem to help you with. What would you like to learn about algorithms?";
   }
 
-  const payload = {
-    jsonrpc: "2.0",
-    id: Date.now(),
-    method: "tools/call",
-    params: {
-      name: toolName,
-      arguments: params,
-    },
-  };
+  const sanitizedPrompt = userPrompt.trim().slice(0, 1000);
+  if (sanitizedPrompt.length === 0) {
+    return "Please provide a specific question or problem you'd like help with!";
+  }
 
-  const headers = createMCPSessionHeaders(MCP_SESSION_TOKEN, sessionId);
-
-  try {
-    const response = await axios.post(`${MCP_ENDPOINT}/mcp`, payload, {
-      headers,
-    });
-    console.log(
-      `Raw MCP response for ${toolName}:`,
-      JSON.stringify(response.data, null, 2)
-    );
-
-    if (response.data && response.data.result) {
-      return response.data;
-    } else if (response.data && response.data.error) {
-      console.error(`MCP tool error for ${toolName}:`, response.data.error);
-      return null;
+  if (!getSessionId()) {
+    const initialized = await initializeMCPSession();
+    if (!initialized) {
+      return createFallbackResponse(sanitizedPrompt);
     }
-    return response.data;
-  } catch (error: unknown) {
-    const axiosError = error as {
-      response?: { data?: unknown };
-      message?: string;
-    };
-    console.error(
-      `Error calling MCP tool ${toolName}:`,
-      axiosError.response?.data || axiosError.message
-    );
-    return null;
   }
+
+  const [challengeResponse, skillsResponse] = await Promise.all([
+    callMCPTool("query-tc-challenges", { limit: 3, difficulty: "easy" }),
+    callMCPTool("query-tc-skills", { category: "algorithms", limit: 5 }),
+  ]);
+
+  if (
+    !hasValidData(challengeResponse, parseSSEData) &&
+    !hasValidData(skillsResponse, parseSSEData)
+  ) {
+    return createFallbackResponse(sanitizedPrompt);
+  }
+
+  return createSuccessResponse(challengeResponse, skillsResponse);
 }
 
 /**
- * Parse SSE format data and extract the structured data array
+ * Create fallback educational response
  */
-function parseSSEData(sseData: unknown): Challenge[] | Skill[] | null {
-  if (!sseData || typeof sseData !== "string") {
-    return null;
-  }
+function createFallbackResponse(userPrompt: string): string {
+  const challenges = createFallbackContent("challenges");
+  const skills = createFallbackContent("skills");
 
-  try {
-    // Parse SSE format: "event: message\ndata: {json data}"
-    const lines = sseData.split("\n");
-    const dataLine = lines.find((line) => line.startsWith("data: "));
-    if (!dataLine) return null;
+  return `I'm Professor Al Gorithm! While I'm having connection issues with the live database, I can still help you learn algorithms using the Design Canvas approach.
 
-    const jsonData = JSON.parse(dataLine.substring(6)); // Remove "data: "
-    const result = JSON.parse(jsonData.result.content[0].text);
+🎯 **Sample Practice Challenges:**
+${challenges.join("\n")}
 
-    if (result.data && Array.isArray(result.data)) {
-      return result.data;
-    }
+📚 **Core Skills to Master:**
+${skills.join("\n")}
 
-    return null;
-  } catch (error) {
-    console.error("Error parsing SSE data:", error);
-    return null;
-  }
+Let's work through your problem: "${userPrompt.slice(0, 100)}${userPrompt.length > 100 ? "..." : ""}"
+
+Using the Algorithm Design Canvas:
+1. **Constraints** - What are the input/output requirements?
+2. **Ideas** - What approaches can we consider?
+3. **Test Cases** - What scenarios should we test?
+4. **Code** - How do we structure the solution?
+
+What specific aspect would you like to start with?`;
 }
 
 /**
- * Format challenge data for educational presentation
+ * Create success response with MCP data
  */
-function formatChallengesForLearning(
-  challengeData: MCPResponse | null
+function createSuccessResponse(
+  challengeResponse: MCPResponse | null,
+  skillsResponse: MCPResponse | null
 ): string {
-  const parsedData = parseSSEData(challengeData);
-
-  if (!parsedData) {
-    return "• Real Topcoder challenges available - processing data...";
-  }
-
-  return (parsedData as Challenge[])
-    .slice(0, 3)
-    .map((challenge: Challenge) => {
-      const track = challenge.track || "Development";
-      const status = challenge.status || "Active";
-      return `• **${challenge.name}** (${track} - ${status})`;
-    })
-    .join("\n");
-}
-
-/**
- * Format skills data for educational presentation
- */
-function formatSkillsForLearning(skillsData: MCPResponse | null): string {
-  const parsedData = parseSSEData(skillsData);
-
-  if (!parsedData) {
-    return "• Algorithm Design\n• Data Structures\n• Problem Solving\n• Code Optimization\n• System Design";
-  }
-
-  return (parsedData as Skill[])
-    .slice(0, 5)
-    .map((skill: Skill) => {
-      const category = skill.category?.name || "General";
-      return `• **${skill.name}** (${category})`;
-    })
-    .join("\n");
-}
-
-/**
- * Initialize MCP session and get session ID
- */
-async function initializeMCPSession(): Promise<boolean> {
-  if (!MCP_ENDPOINT || !MCP_SESSION_TOKEN) {
-    console.error("Missing MCP_ENDPOINT or MCP_SESSION_TOKEN");
-    return false;
-  }
-
-  try {
-    const headers = createMCPHeaders(MCP_SESSION_TOKEN);
-    const initPayload = createMCPInitPayload();
-
-    const response = await axios.post(`${MCP_ENDPOINT}/mcp`, initPayload, {
-      headers,
-    });
-
-    // Get session ID from headers
-    sessionId = extractSessionId(response.headers, MCP_SESSION_TOKEN);
-
-    console.log(
-      `MCP session initialized with ID: ${sessionId?.slice(0, 20)}...`
-    );
-    return true;
-  } catch (error: unknown) {
-    const axiosError = error as {
-      response?: { data?: unknown };
-      message?: string;
-    };
-    console.error(
-      "Failed to initialize MCP session:",
-      axiosError.response?.data || axiosError.message
-    );
-    return false;
-  }
-}
-
-// Enhanced API functions for Express endpoints
-export async function processUserQuery(
-  _userPrompt: string,
-  _conversationId?: string
-): Promise<string> {
-  // Add conversation context logic here in future
-  return await queryMCP(_userPrompt);
-}
-
-export async function getChallenges(params: {
-  limit: number;
-  difficulty: string;
-}): Promise<Challenge[]> {
-  try {
-    if (!sessionId) {
-      const initialized = await initializeMCPSession();
-      if (!initialized) {
-        return [];
-      }
-    }
-
-    const response = await callMCPTool("query-tc-challenges", {
-      limit: params.limit,
-      difficulty: params.difficulty,
-    });
-
-    const parsedData = parseSSEData(response);
-    return (parsedData as Challenge[]) || [];
-  } catch (error) {
-    console.error("Error fetching challenges:", error);
-    return [];
-  }
-}
-
-export async function getSkills(params: {
-  limit: number;
-  category: string;
-}): Promise<Skill[]> {
-  try {
-    if (!sessionId) {
-      const initialized = await initializeMCPSession();
-      if (!initialized) {
-        return [];
-      }
-    }
-
-    const response = await callMCPTool("query-tc-skills", {
-      limit: params.limit,
-      category: params.category,
-    });
-
-    const parsedData = parseSSEData(response);
-    return (parsedData as Skill[]) || [];
-  } catch (error) {
-    console.error("Error fetching skills:", error);
-    return [];
-  }
-}
-
-export async function queryMCP(_userPrompt: string): Promise<string> {
-  try {
-    // Initialize session if not already done
-    if (!sessionId) {
-      const initialized = await initializeMCPSession();
-      if (!initialized) {
-        return "Failed to connect to MCP server. Please check your session token.";
-      }
-    }
-
-    // Query Topcoder challenges to get real problems for the student
-    console.log("Fetching challenges...");
-    const challengeResponse = await callMCPTool("query-tc-challenges", {
-      limit: 3,
-      difficulty: "easy",
-    });
-    console.log(
-      "Challenge response:",
-      JSON.stringify(challengeResponse, null, 2)
-    );
-
-    // Query skills to understand what we can teach
-    console.log("Fetching skills...");
-    const skillsResponse = await callMCPTool("query-tc-skills", {
-      category: "algorithms",
-      limit: 5,
-    });
-    console.log("Skills response:", JSON.stringify(skillsResponse, null, 2));
-
-    return `I'm Professor Al Gorithm! I've connected to the Topcoder database and found some excellent problems for you.
+  return `I'm Professor Al Gorithm! I've connected to the Topcoder database and found some excellent problems for you.
 
 🎯 **Available Practice Challenges:**
 ${formatChallengesForLearning(challengeResponse)}
@@ -342,6 +100,15 @@ Let's use the Algorithm Design Canvas approach to tackle one of these:
 4. **Code**: Structure the implementation step-by-step
 
 Which challenge interests you, or would you prefer me to select one based on your current skill level?`;
+}
+
+// Enhanced API functions for Express endpoints
+export async function processQuery(
+  userPrompt: string,
+  _conversationId?: string
+): Promise<string> {
+  try {
+    return await processUserQuery(userPrompt);
   } catch (error: unknown) {
     const axiosError = error as {
       response?: { data?: unknown };
@@ -351,6 +118,72 @@ Which challenge interests you, or would you prefer me to select one based on you
       "Error querying MCP:",
       axiosError.response?.data || axiosError.message
     );
-    return "I'm having trouble connecting to the tutoring system right now, but let's work through your problem step by step using the Algorithm Design Canvas approach! What coding problem would you like to tackle?";
+    return createFallbackResponse(userPrompt);
   }
 }
+
+export async function getChallenges(params: {
+  limit: number;
+  difficulty: string;
+}): Promise<Challenge[]> {
+  try {
+    const validatedParams = validateMCPParams(params);
+
+    if (!getSessionId()) {
+      const initialized = await initializeMCPSession();
+      if (!initialized) {
+        console.error("Failed to initialize MCP session for challenges");
+        return [];
+      }
+    }
+
+    const response = await callMCPTool("query-tc-challenges", validatedParams);
+
+    if (!response) {
+      console.warn("No response from MCP server for challenges");
+      return [];
+    }
+
+    const parsedData = parseSSEData(response);
+    const challenges = (parsedData as Challenge[]) || [];
+
+    return filterValidItems(challenges);
+  } catch (error) {
+    console.error("Error fetching challenges:", error);
+    return [];
+  }
+}
+
+export async function getSkills(params: {
+  limit: number;
+  category: string;
+}): Promise<Skill[]> {
+  try {
+    const validatedParams = validateMCPParams(params);
+
+    if (!getSessionId()) {
+      const initialized = await initializeMCPSession();
+      if (!initialized) {
+        console.error("Failed to initialize MCP session for skills");
+        return [];
+      }
+    }
+
+    const response = await callMCPTool("query-tc-skills", validatedParams);
+
+    if (!response) {
+      console.warn("No response from MCP server for skills");
+      return [];
+    }
+
+    const parsedData = parseSSEData(response);
+    const skills = (parsedData as Skill[]) || [];
+
+    return filterValidItems(skills);
+  } catch (error) {
+    console.error("Error fetching skills:", error);
+    return [];
+  }
+}
+
+export { processUserQuery as queryMCP };

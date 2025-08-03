@@ -2,12 +2,17 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 
+import { processQuery, getChallenges, getSkills } from "./mcpService";
+import { monitor } from "./performanceMonitor";
 import {
-  queryMCP,
-  getChallenges,
-  getSkills,
-  processUserQuery,
-} from "./mcpService";
+  createTimeoutPromise,
+  validateLimit,
+  validateDifficulty,
+  validatePhase,
+  createErrorResponse,
+  processCanvasPhase,
+  getNextPhase,
+} from "./serverHelpers";
 
 dotenv.config();
 
@@ -18,6 +23,9 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Performance monitoring middleware
+app.use(monitor.middleware());
+
 // Health check endpoint
 app.get("/", (req, res) => {
   res.json({
@@ -27,56 +35,122 @@ app.get("/", (req, res) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint with performance monitoring
 app.get("/health", (req, res) => {
-  res.json({ status: "healthy", timestamp: new Date().toISOString() });
+  const healthStatus = monitor.getHealthStatus();
+  res.json({
+    status: healthStatus.status,
+    message: healthStatus.message,
+    timestamp: new Date().toISOString(),
+    performance: healthStatus.details,
+  });
+});
+
+// Performance stats endpoint (for debugging/monitoring)
+app.get("/api/stats", (req, res) => {
+  const minutesBack = parseInt(req.query.minutes as string) || 5;
+  const stats = monitor.getStats(minutesBack);
+  res.json({
+    stats,
+    timeRange: `${minutesBack} minutes`,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Chat endpoint - main conversation interface
 app.post("/api/chat", async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { message, conversationId } = req.body;
 
+    // Enhanced input validation
     if (!message || typeof message !== "string") {
       return res.status(400).json({
         error: "Message is required and must be a string",
+        code: "INVALID_MESSAGE",
       });
     }
 
-    const response = await processUserQuery(message, conversationId);
+    if (message.length > 2000) {
+      return res.status(400).json({
+        error: "Message too long. Please limit to 2000 characters.",
+        code: "MESSAGE_TOO_LONG",
+      });
+    }
+
+    if (conversationId && typeof conversationId !== "string") {
+      return res.status(400).json({
+        error: "Conversation ID must be a string",
+        code: "INVALID_CONVERSATION_ID",
+      });
+    }
+
+    const response = await Promise.race([
+      processQuery(message.trim(), conversationId),
+      createTimeoutPromise(45000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Chat request processed in ${processingTime}ms`);
 
     res.json({
       response,
       conversationId: conversationId || Date.now().toString(),
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error in chat endpoint:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      message: "Failed to process your request. Please try again.",
-    });
+    const processingTime = Date.now() - startTime;
+    console.error(`Error in chat endpoint (${processingTime}ms):`, error);
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res
+      .status(errorResponse.code === "TIMEOUT" ? 408 : 500)
+      .json(errorResponse);
   }
 });
 
 // Get available challenges - GET endpoint
 app.get("/api/challenges", async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { limit = 5, difficulty = "easy" } = req.query;
 
-    const challenges = await getChallenges({
-      limit: parseInt(limit as string),
-      difficulty: difficulty as string,
-    });
+    const parsedLimit = validateLimit(limit as string);
+    const validDifficulty = validateDifficulty(difficulty as string);
+
+    const challenges = await Promise.race([
+      getChallenges({ limit: parsedLimit, difficulty: validDifficulty }),
+      createTimeoutPromise(30000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Challenges request processed in ${processingTime}ms`);
 
     res.json({
       challenges,
+      count: challenges.length,
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error fetching challenges:", error);
-    res.status(500).json({
-      error: "Failed to fetch challenges",
+    const processingTime = Date.now() - startTime;
+    console.error(`Error fetching challenges (${processingTime}ms):`, error);
+
+    if (error instanceof Error && error.message.includes("must be")) {
+      return res.status(400).json({
+        error: error.message,
+        code: error.message.includes("Limit")
+          ? "INVALID_LIMIT"
+          : "INVALID_DIFFICULTY",
+      });
+    }
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res.status(errorResponse.code === "TIMEOUT" ? 408 : 500).json({
+      ...errorResponse,
       challenges: [],
     });
   }
@@ -84,22 +158,44 @@ app.get("/api/challenges", async (req, res) => {
 
 // Get available challenges - POST endpoint for Gradio
 app.post("/api/challenges", async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { limit = 5, difficulty = "easy" } = req.body;
 
-    const challenges = await getChallenges({
-      limit: parseInt(limit as string),
-      difficulty: difficulty as string,
-    });
+    const parsedLimit = validateLimit(limit as string);
+    const validDifficulty = validateDifficulty(difficulty as string);
+
+    const challenges = await Promise.race([
+      getChallenges({ limit: parsedLimit, difficulty: validDifficulty }),
+      createTimeoutPromise(30000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Challenges request processed in ${processingTime}ms`);
 
     res.json({
       challenges,
+      count: challenges.length,
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error fetching challenges:", error);
-    res.status(500).json({
-      error: "Failed to fetch challenges",
+    const processingTime = Date.now() - startTime;
+    console.error(`Error fetching challenges (${processingTime}ms):`, error);
+
+    if (error instanceof Error && error.message.includes("must be")) {
+      return res.status(400).json({
+        error: error.message,
+        code: error.message.includes("Limit")
+          ? "INVALID_LIMIT"
+          : "INVALID_DIFFICULTY",
+      });
+    }
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res.status(errorResponse.code === "TIMEOUT" ? 408 : 500).json({
+      ...errorResponse,
       challenges: [],
     });
   }
@@ -107,22 +203,41 @@ app.post("/api/challenges", async (req, res) => {
 
 // Get available skills - GET endpoint
 app.get("/api/skills", async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { limit = 10, category = "algorithms" } = req.query;
 
-    const skills = await getSkills({
-      limit: parseInt(limit as string),
-      category: category as string,
-    });
+    const parsedLimit = validateLimit(limit as string);
+
+    const skills = await Promise.race([
+      getSkills({ limit: parsedLimit, category: category as string }),
+      createTimeoutPromise(30000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Skills request processed in ${processingTime}ms`);
 
     res.json({
       skills,
+      count: skills.length,
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error fetching skills:", error);
-    res.status(500).json({
-      error: "Failed to fetch skills",
+    const processingTime = Date.now() - startTime;
+    console.error(`Error fetching skills (${processingTime}ms):`, error);
+
+    if (error instanceof Error && error.message.includes("must be")) {
+      return res.status(400).json({
+        error: error.message,
+        code: "INVALID_LIMIT",
+      });
+    }
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res.status(errorResponse.code === "TIMEOUT" ? 408 : 500).json({
+      ...errorResponse,
       skills: [],
     });
   }
@@ -130,22 +245,41 @@ app.get("/api/skills", async (req, res) => {
 
 // Get available skills - POST endpoint for Gradio
 app.post("/api/skills", async (req, res) => {
+  const startTime = Date.now();
+
   try {
     const { limit = 10, category = "algorithms" } = req.body;
 
-    const skills = await getSkills({
-      limit: parseInt(limit as string),
-      category: category as string,
-    });
+    const parsedLimit = validateLimit(limit as string);
+
+    const skills = await Promise.race([
+      getSkills({ limit: parsedLimit, category: category as string }),
+      createTimeoutPromise(30000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Skills request processed in ${processingTime}ms`);
 
     res.json({
       skills,
+      count: skills.length,
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error fetching skills:", error);
-    res.status(500).json({
-      error: "Failed to fetch skills",
+    const processingTime = Date.now() - startTime;
+    console.error(`Error fetching skills (${processingTime}ms):`, error);
+
+    if (error instanceof Error && error.message.includes("must be")) {
+      return res.status(400).json({
+        error: error.message,
+        code: "INVALID_LIMIT",
+      });
+    }
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res.status(errorResponse.code === "TIMEOUT" ? 408 : 500).json({
+      ...errorResponse,
       skills: [],
     });
   }
@@ -153,58 +287,98 @@ app.post("/api/skills", async (req, res) => {
 
 // Algorithm Design Canvas endpoint
 app.post("/api/canvas", async (req, res) => {
+  const startTime = Date.now();
+
   try {
-    const { phase, content, _challengeId } = req.body;
+    const { phase, content, challengeId } = req.body;
 
-    if (!phase || !content) {
+    // Enhanced input validation
+    if (!phase || typeof phase !== "string") {
       return res.status(400).json({
-        error: "Phase and content are required",
+        error: "Phase is required and must be a string",
+        code: "INVALID_PHASE",
       });
     }
 
-    const validPhases = ["constraints", "ideas", "test-cases", "code"];
-    if (!validPhases.includes(phase)) {
+    if (!content || typeof content !== "string") {
       return res.status(400).json({
-        error:
-          "Invalid phase. Must be one of: constraints, ideas, test-cases, code",
+        error: "Content is required and must be a string",
+        code: "INVALID_CONTENT",
       });
     }
 
-    // Process the canvas submission
-    const feedback = await processCanvasPhase(phase, content, _challengeId);
+    if (content.length > 5000) {
+      return res.status(400).json({
+        error: "Content too long. Please limit to 5000 characters.",
+        code: "CONTENT_TOO_LONG",
+      });
+    }
+
+    const validPhase = validatePhase(phase);
+
+    if (challengeId && typeof challengeId !== "string") {
+      return res.status(400).json({
+        error: "Challenge ID must be a string",
+        code: "INVALID_CHALLENGE_ID",
+      });
+    }
+
+    const feedback = await Promise.race([
+      processCanvasPhase(validPhase, content.trim(), challengeId),
+      createTimeoutPromise(30000),
+    ]);
+
+    const processingTime = Date.now() - startTime;
+    console.log(`Canvas request processed in ${processingTime}ms`);
 
     res.json({
-      phase,
+      phase: validPhase,
       feedback,
-      nextPhase: getNextPhase(phase),
+      nextPhase: getNextPhase(validPhase),
       timestamp: new Date().toISOString(),
+      processingTime,
     });
   } catch (error) {
-    console.error("Error processing canvas:", error);
-    res.status(500).json({
-      error: "Failed to process canvas submission",
-    });
+    const processingTime = Date.now() - startTime;
+    console.error(`Error processing canvas (${processingTime}ms):`, error);
+
+    if (error instanceof Error && error.message.includes("Invalid phase")) {
+      return res.status(400).json({
+        error: error.message,
+        code: "INVALID_PHASE_VALUE",
+      });
+    }
+
+    const errorResponse = createErrorResponse(error as Error, processingTime);
+    res
+      .status(errorResponse.code === "TIMEOUT" ? 408 : 500)
+      .json(errorResponse);
   }
 });
 
-// Helper function to process canvas phases
-async function processCanvasPhase(
-  phase: string,
-  content: string,
-  _challengeId?: string
-): Promise<string> {
-  const prompt = `As Professor Al Gorithm, provide feedback on this ${phase} phase submission: ${content}`;
-  return await queryMCP(prompt);
-}
-
-// Helper function to get next phase
-function getNextPhase(currentPhase: string): string | null {
-  const phases = ["constraints", "ideas", "test-cases", "code"];
-  const currentIndex = phases.indexOf(currentPhase);
-  return currentIndex < phases.length - 1 ? phases[currentIndex + 1] : null;
-}
-
 // Error handling middleware
+function logError(error: Error, req: express.Request): void {
+  console.error("Unhandled error:", {
+    error: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function createErrorJson(error: Error): object {
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  return {
+    error: "Internal server error",
+    message: isDevelopment ? error.message : "Something went wrong",
+    code: "UNHANDLED_ERROR",
+    timestamp: new Date().toISOString(),
+    ...(isDevelopment && { stack: error.stack }),
+  };
+}
+
 app.use(
   (
     error: Error,
@@ -212,14 +386,8 @@ app.use(
     res: express.Response,
     _next: express.NextFunction
   ) => {
-    console.error("Unhandled error:", error);
-    res.status(500).json({
-      error: "Internal server error",
-      message:
-        process.env.NODE_ENV === "development"
-          ? error.message
-          : "Something went wrong",
-    });
+    logError(error, req);
+    res.status(500).json(createErrorJson(error));
   }
 );
 

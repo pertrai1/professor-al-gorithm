@@ -52,11 +52,52 @@ cp .env.example .env
 
 # Frontend environment (optional)
 export BACKEND_URL=http://localhost:3000  # Default value
+
+# Production monitoring (optional)
+export NODE_ENV=production  # Hides sensitive error details
+```
+
+#### Module 7 Environment Variables
+
+```bash
+# Performance monitoring
+export ENABLE_PERFORMANCE_MONITORING=true
+
+# Timeout configurations (milliseconds)
+export MCP_TIMEOUT=30000
+export API_TIMEOUT=45000
+export REQUEST_TIMEOUT=60000
 ```
 
 ### Testing
 
-Currently no test framework is configured - tests need to be implemented.
+#### End-to-End Testing (Module 7 Enhanced)
+
+```bash
+# Run comprehensive E2E tests
+python test-e2e.py
+
+# Test with custom backend URL
+python test-e2e.py --backend-url http://localhost:3000
+
+# Install test dependencies
+pip install aiohttp  # Already in requirements.txt
+```
+
+**Test Coverage:**
+
+- Backend API endpoint validation
+- MCP integration testing with fallback scenarios
+- Error handling and edge case validation
+- Performance monitoring and timeout testing
+- Concurrent request handling
+- Input validation and security testing
+
+**Test Results:**
+
+- Generates `test-results.json` with detailed metrics
+- Success rate tracking and performance analysis
+- Identifies slow endpoints and error patterns
 
 ## Architecture Overview
 
@@ -108,6 +149,15 @@ The project follows a structured 4-phase approach for teaching problem-solving:
 - **Session Management**: Single global session, auto-initialized on first use
 - **Tool Parameters**: Use `difficulty="easy"` for beginners, `category="algorithms"` for skills
 
+#### Module 7 MCP Enhancements
+
+- **Timeout Handling**: 30-second timeouts with automatic retry logic
+- **Session Recovery**: Automatic session reinitialization on 401 errors
+- **Fallback Behavior**: Educational content when MCP server is unavailable
+- **Error Classification**: Network errors, timeouts, and server errors handled differently
+- **Input Validation**: Parameter validation and sanitization before MCP calls
+- **Performance Monitoring**: Response time tracking and slow request detection
+
 ### TypeScript Configuration
 
 - Uses CommonJS modules with ES2016 target
@@ -139,6 +189,16 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 - Console logging for debugging MCP interactions
 - Session initialization happens automatically on first tool call
 
+#### Module 7 Enhanced Patterns
+
+- **Retry Logic**: Automatic retry for network failures (not timeouts)
+- **Input Sanitization**: All user inputs validated and sanitized
+- **Performance Monitoring**: Built-in metrics collection and analysis
+- **Graceful Degradation**: System continues operating when MCP is unavailable
+- **Timeout Management**: Request-level timeouts with user-friendly messages
+- **Error Classification**: Different handling for network, timeout, and server errors
+- **Security Hardening**: Protection against XSS, SQL injection, and other attacks
+
 ### Dependencies
 
 #### Backend Dependencies
@@ -150,6 +210,13 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 - **express**: Web framework for API server
 - **cors**: Cross-origin resource sharing middleware
 
+#### Module 7 Enhanced Components
+
+- **performanceMonitor.ts**: Performance tracking and health monitoring
+- **Enhanced error handling**: Comprehensive error classification and response
+- **Timeout management**: Request-level timeout handling with fallbacks
+- **Input validation**: Parameter validation and sanitization utilities
+
 #### Frontend Dependencies
 
 - **gradio**: Web interface framework for AI applications
@@ -160,16 +227,46 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 
 The Express.js server provides RESTful endpoints for the Gradio frontend:
 
+#### Module 7 Enhanced Features
+
+- **Performance Monitoring**: All endpoints include response time tracking
+- **Enhanced Error Handling**: Structured error responses with error codes
+- **Input Validation**: Comprehensive validation for all request parameters
+- **Timeout Management**: Request-level timeouts with graceful handling
+- **Health Monitoring**: Extended health checks with performance metrics
+
 #### Core Endpoints
 
 - `GET /` - Health check and API info
-- `GET /health` - Health check with timestamp
+- `GET /health` - Enhanced health check with performance metrics and system status
+- `GET /api/stats` - Performance statistics and monitoring data
 - `POST /api/chat` - Main conversation interface with Professor Al Gorithm
 - `GET /api/challenges` - Fetch Topcoder challenges (query parameters)
 - `POST /api/challenges` - Fetch Topcoder challenges (JSON body, for Gradio frontend)
 - `GET /api/skills` - Fetch available skills (query parameters)
 - `POST /api/skills` - Fetch available skills (JSON body, for Gradio frontend)
 - `POST /api/canvas` - Algorithm Design Canvas phase processing
+
+#### Module 7 Enhanced Error Responses
+
+All endpoints now return structured error responses:
+
+```json
+{
+  "error": "Error description",
+  "code": "ERROR_CODE",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "processingTime": 1234
+}
+```
+
+**Error Codes:**
+
+- `INVALID_MESSAGE` - Message validation failed
+- `MESSAGE_TOO_LONG` - Message exceeds length limit
+- `TIMEOUT` - Request timed out
+- `FETCH_ERROR` - MCP server communication failed
+- `PROCESSING_ERROR` - Canvas processing failed
 
 #### Example Usage
 

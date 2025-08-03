@@ -2,6 +2,13 @@
 """
 Professor Al Gorithm - AI Agent for Teaching Algorithm Design Canvas Methodology
 Gradio interface for the educational AI agent that integrates with Topcoder MCP server
+
+Module 7 Enhanced Version: End-to-End Testing & Debugging Features
+- Comprehensive error handling and fallback behavior
+- Timeout management and retry logic  
+- Edge case handling for unexpected inputs
+- Enhanced user feedback and loading states
+- Performance monitoring and optimization
 """
 
 import gradio as gr
@@ -11,6 +18,7 @@ import os
 from typing import Dict, Any, Optional, Tuple
 import asyncio
 import aiohttp
+import time
 
 # Configuration
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3000")
@@ -25,60 +33,208 @@ class ProfessorAlGorithm:
     async def get_challenges(self, difficulty: str = "easy") -> str:
         """Fetch coding challenges from MCP server via backend"""
         try:
-            async with aiohttp.ClientSession() as session:
+            # Validate input
+            if difficulty not in ['easy', 'medium', 'hard']:
+                difficulty = 'easy'
+                
+            timeout = aiohttp.ClientTimeout(total=45)  # 45 second timeout
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
                     f"{BACKEND_URL}/api/challenges",
-                    json={"difficulty": difficulty},
-                    timeout=30
+                    json={"difficulty": difficulty, "limit": 5},
+                    headers={'Content-Type': 'application/json'}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
                         return self._format_challenges_for_display(data)
+                    elif response.status == 400:
+                        error_data = await response.json() if response.content_type == 'application/json' else {}
+                        return f"Invalid request: {error_data.get('error', 'Bad request')}"
+                    elif response.status == 408:
+                        return "⏰ Request timed out. The system may be busy. Please try again in a moment."
+                    elif response.status >= 500:
+                        return "🔧 Server is temporarily unavailable. Using fallback challenges..\n\n" + self._get_fallback_challenges()
                     else:
-                        return f"Error fetching challenges: {response.status}"
+                        return f"Unexpected error (Status {response.status}). Using fallback challenges...\n\n" + self._get_fallback_challenges()
+                        
+        except asyncio.TimeoutError:
+            return "⏰ Connection timed out. Please check your internet connection and try again.\n\n" + self._get_fallback_challenges()
+        except aiohttp.ClientError as e:
+            return f"🌐 Connection error: {str(e)}\n\n" + self._get_fallback_challenges()
         except Exception as e:
-            return f"Connection error: {str(e)}\n\nFallback: Here's a sample algorithm problem to get started:\n\n**Two Sum Problem**\nGiven an array of integers and a target sum, find two numbers that add up to the target."
+            print(f"Unexpected error in get_challenges: {e}")  # Log for debugging
+            return "❌ An unexpected error occurred. Using fallback challenges...\n\n" + self._get_fallback_challenges()
+    
+    def _get_fallback_challenges(self) -> str:
+        """Provide fallback challenges when MCP is unavailable"""
+        return """## Sample Coding Challenges
+
+**🎯 Two Sum Problem**
+Difficulty: Easy
+Description: Given an array of integers and a target sum, find two numbers that add up to the target.
+
+**🎯 Valid Parentheses**
+Difficulty: Easy  
+Description: Given a string containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.
+
+**🎯 Maximum Subarray**
+Difficulty: Medium
+Description: Find the contiguous subarray within a one-dimensional array of numbers that has the largest sum.
+
+💡 **Pro Tip**: Start with the easiest problem and work your way up!"""
     
     async def get_skills(self, category: str = "algorithms") -> str:
         """Fetch skills data from MCP server via backend"""
         try:
-            async with aiohttp.ClientSession() as session:
+            # Validate input
+            valid_categories = ['algorithms', 'data-structures', 'dynamic-programming', 'graphs']
+            if category not in valid_categories:
+                category = 'algorithms'
+                
+            timeout = aiohttp.ClientTimeout(total=45)  # 45 second timeout
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
                     f"{BACKEND_URL}/api/skills",
-                    json={"category": category},
-                    timeout=30
+                    json={"category": category, "limit": 10},
+                    headers={'Content-Type': 'application/json'}
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
                         return self._format_skills_for_display(data)
+                    elif response.status == 400:
+                        error_data = await response.json() if response.content_type == 'application/json' else {}
+                        return f"Invalid request: {error_data.get('error', 'Bad request')}"
+                    elif response.status == 408:
+                        return "⏰ Request timed out. The system may be busy. Please try again in a moment."
+                    elif response.status >= 500:
+                        return "🔧 Server is temporarily unavailable. Using fallback skills...\n\n" + self._get_fallback_skills(category)
                     else:
-                        return f"Error fetching skills: {response.status}"
+                        return f"Unexpected error (Status {response.status}). Using fallback skills...\n\n" + self._get_fallback_skills(category)
+                        
+        except asyncio.TimeoutError:
+            return "⏰ Connection timed out. Please check your internet connection and try again.\n\n" + self._get_fallback_skills(category)
+        except aiohttp.ClientError as e:
+            return f"🌐 Connection error: {str(e)}\n\n" + self._get_fallback_skills(category)
         except Exception as e:
-            return f"Connection error: {str(e)}\n\nFallback: Focus on these core algorithm skills:\n- Array manipulation\n- Two pointers technique\n- Hash tables\n- Recursion basics"
+            print(f"Unexpected error in get_skills: {e}")  # Log for debugging
+            return "❌ An unexpected error occurred. Using fallback skills...\n\n" + self._get_fallback_skills(category)
+    
+    def _get_fallback_skills(self, category: str = "algorithms") -> str:
+        """Provide fallback skills when MCP is unavailable"""
+        skills_by_category = {
+            'algorithms': [
+                "**Array Manipulation** - Working with arrays, indices, and traversal patterns",
+                "**Two Pointers Technique** - Efficient array traversal using multiple pointers", 
+                "**Hash Tables** - Fast lookups, counting, and memoization strategies",
+                "**Sorting & Searching** - Binary search, merge sort, quicksort fundamentals",
+                "**Recursion & Backtracking** - Breaking problems into smaller subproblems"
+            ],
+            'data-structures': [
+                "**Linked Lists** - Node-based data structures and pointer manipulation",
+                "**Stacks & Queues** - LIFO and FIFO data structures for problem solving",
+                "**Trees & Binary Trees** - Hierarchical data structures and traversals",
+                "**Heaps** - Priority queues and heap-based algorithms",
+                "**Graphs** - Graph representation, traversal, and pathfinding"
+            ],
+            'dynamic-programming': [
+                "**Memoization** - Top-down approach with caching",
+                "**Tabulation** - Bottom-up approach with iterative solutions",
+                "**Optimal Substructure** - Breaking problems into optimal subproblems",
+                "**State Transition** - Defining states and transitions between them",
+                "**Space Optimization** - Reducing memory usage in DP solutions"
+            ],
+            'graphs': [
+                "**Graph Representation** - Adjacency lists, matrices, and edge lists",
+                "**BFS & DFS** - Breadth-first and depth-first search algorithms",
+                "**Shortest Paths** - Dijkstra's algorithm and pathfinding",
+                "**Topological Sorting** - Ordering vertices in directed acyclic graphs",
+                "**Connected Components** - Finding and analyzing graph connectivity"
+            ]
+        }
+        
+        skills = skills_by_category.get(category, skills_by_category['algorithms'])
+        return f"## Recommended {category.title()} Skills to Practice\n\n" + "\n".join(f"• {skill}" for skill in skills)
     
     def _format_challenges_for_display(self, data: Dict[str, Any]) -> str:
         """Format challenge data for educational display"""
         if not data or 'challenges' not in data:
-            return "No challenges available"
+            return "No challenges available. Try refreshing or check your connection."
         
-        formatted = "## Available Coding Challenges\n\n"
-        for challenge in data['challenges'][:3]:  # Show top 3
-            formatted += f"**{challenge.get('name', 'Unknown Challenge')}**\n"
-            formatted += f"Difficulty: {challenge.get('difficulty', 'Unknown')}\n"
-            formatted += f"Description: {challenge.get('description', 'No description available')}\n\n"
+        challenges = data['challenges']
+        if not challenges:
+            return "No challenges found for the selected difficulty. Try a different difficulty level."
+            
+        count = data.get('count', len(challenges))
+        processing_time = data.get('processingTime', 0)
+        
+        formatted = f"## 🎯 Available Coding Challenges ({count} found)\n\n"
+        
+        for i, challenge in enumerate(challenges[:5], 1):  # Show top 5
+            name = challenge.get('name', f'Challenge #{i}')
+            track = challenge.get('track', 'Unknown Track')
+            status = challenge.get('status', 'Unknown Status')
+            description = challenge.get('description', 'No description available')
+            
+            # Truncate long descriptions
+            if len(description) > 200:
+                description = description[:200] + "..."
+                
+            formatted += f"**{i}. {name}**\n"
+            formatted += f"📚 Track: {track}\n"
+            formatted += f"🔄 Status: {status}\n"
+            formatted += f"📝 Description: {description}\n\n"
+        
+        if processing_time > 0:
+            formatted += f"\n⚡ *Retrieved in {processing_time}ms*"
         
         return formatted
     
     def _format_skills_for_display(self, data: Dict[str, Any]) -> str:
         """Format skills data for educational display"""
         if not data or 'skills' not in data:
-            return "No skills data available"
+            return "No skills data available. Try refreshing or check your connection."
         
-        formatted = "## Recommended Skills to Practice\n\n"
-        for skill in data['skills'][:5]:  # Show top 5
-            formatted += f"• **{skill.get('name', 'Unknown Skill')}**\n"
-            formatted += f"  Category: {skill.get('category', 'Unknown')}\n"
-            formatted += f"  Level: {skill.get('level', 'Unknown')}\n\n"
+        skills = data['skills']
+        if not skills:
+            return "No skills found for the selected category. Try a different category."
+            
+        count = len(skills)
+        processing_time = data.get('processingTime', 0)
+        
+        formatted = f"## 🛠️ Recommended Skills to Practice ({count} found)\n\n"
+        
+        for i, skill in enumerate(skills[:8], 1):  # Show top 8
+            name = skill.get('name', f'Skill #{i}')
+            category_info = skill.get('category', {})
+            
+            if isinstance(category_info, dict):
+                category = category_info.get('name', 'Unknown Category')
+                category_desc = category_info.get('description', '')
+            else:
+                category = str(category_info) if category_info else 'Unknown Category'
+                category_desc = ''
+            
+            description = skill.get('description', 'No description available')
+            
+            # Truncate long descriptions
+            if len(description) > 150:
+                description = description[:150] + "..."
+                
+            formatted += f"• **{name}**\n"
+            formatted += f"  📂 Category: {category}\n"
+            
+            if description and description != 'No description available':
+                formatted += f"  📖 Description: {description}\n"
+            
+            if category_desc:
+                formatted += f"  🎯 Focus: {category_desc[:100]}{'...' if len(category_desc) > 100 else ''}\n"
+                
+            formatted += "\n"
+        
+        if processing_time > 0:
+            formatted += f"\n⚡ *Retrieved in {processing_time}ms*"
         
         return formatted
     
@@ -227,62 +383,106 @@ def create_gradio_interface():
                         code_output = gr.Markdown()
                         code_btn = gr.Button("Guide My Implementation")
         
-        # Status and Progress
+        # Status and Progress with enhanced information
         with gr.Row():
-            status_display = gr.Markdown("**Status:** Ready to start learning! 🚀")
+            status_display = gr.Markdown(
+                f"""**Status:** Ready to start learning! 🚀  
+                **Backend:** Connected to {BACKEND_URL}  
+                **System:** Professor Al Gorithm v2.0 - Enhanced with Module 7 improvements
+                
+                💡 **Tips:**
+                - Start with an easy challenge to warm up
+                - Follow the 4-phase Canvas approach: Constraints → Ideas → Tests → Code  
+                - Take your time with each phase - learning is more important than speed!
+                """
+            )
         
-        # Event handlers
+        # Event handlers with error handling and loading states
         async def fetch_challenges(difficulty):
-            return await professor.get_challenges(difficulty)
+            try:
+                if not difficulty:
+                    return "❌ Please select a difficulty level first."
+                return await professor.get_challenges(difficulty)
+            except Exception as e:
+                print(f"Error in fetch_challenges: {e}")
+                return f"❌ Unexpected error: {str(e)}\n\n" + professor._get_fallback_challenges()
         
         async def fetch_skills(category):
-            return await professor.get_skills(category)
+            try:
+                if not category:
+                    return "❌ Please select a skill category first."
+                return await professor.get_skills(category)
+            except Exception as e:
+                print(f"Error in fetch_skills: {e}")
+                return f"❌ Unexpected error: {str(e)}\n\n" + professor._get_fallback_skills(category)
         
         def guide_phase(phase, user_input):
-            return professor.guide_canvas_phase(phase, user_input)
+            try:
+                if not user_input or not user_input.strip():
+                    return f"Please provide some input for the {phase} phase to get guidance.", phase
+                    
+                if len(user_input.strip()) < 10:
+                    return f"Please provide more detailed input for the {phase} phase (at least 10 characters).", phase
+                    
+                return professor.guide_canvas_phase(phase, user_input.strip())
+            except Exception as e:
+                print(f"Error in guide_phase: {e}")
+                return f"❌ Error processing your input: {str(e)}\n\nPlease try again with your {phase} phase input.", phase
         
-        # Connect buttons to functions with loading states
+        # Connect buttons to functions with enhanced loading states and error handling
         get_challenges_btn.click(
             fn=fetch_challenges,
             inputs=[difficulty_select],
             outputs=[challenges_display],
-            show_progress="full"
+            show_progress="full",
+            scroll_to_output=True,
+            show_api=False  # Hide API details from users
         )
         
         get_skills_btn.click(
             fn=fetch_skills,
             inputs=[category_select],
             outputs=[skills_display],
-            show_progress="full"
+            show_progress="full",
+            scroll_to_output=True,
+            show_api=False
         )
         
-        # Canvas phase guidance with progress indicators
+        # Canvas phase guidance with enhanced progress indicators
         constraints_btn.click(
             fn=lambda inp: guide_phase("constraints", inp),
             inputs=[constraints_input],
             outputs=[constraints_output],
-            show_progress="minimal"
+            show_progress="minimal",
+            scroll_to_output=True,
+            show_api=False
         )
         
         ideas_btn.click(
             fn=lambda inp: guide_phase("ideas", inp),
             inputs=[ideas_input],
             outputs=[ideas_output],
-            show_progress="minimal"
+            show_progress="minimal",
+            scroll_to_output=True,
+            show_api=False
         )
         
         tests_btn.click(
             fn=lambda inp: guide_phase("tests", inp),
             inputs=[tests_input],
             outputs=[tests_output],
-            show_progress="minimal"
+            show_progress="minimal",
+            scroll_to_output=True,
+            show_api=False
         )
         
         code_btn.click(
             fn=lambda inp: guide_phase("code", inp),
             inputs=[code_input],
             outputs=[code_output],
-            show_progress="minimal"
+            show_progress="minimal",
+            scroll_to_output=True,
+            show_api=False
         )
     
     return interface

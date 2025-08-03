@@ -63,3 +63,15 @@ Creativity: Participants are encouraged to push boundaries and design original, 
 - Consider adding a loading indicator or progress feedback if MCP requests take time
 
 **Deliverable:** A lightweight, working UI prototype that allows users to interact with your agent and see live responses from the MCP server
+
+### Module 7: End-to-End Testing & Debugging (Days 1–2)
+
+**Objective:** Ensure your agent is production-ready through comprehensive testing and optimization.
+
+- Perform full end-to-end testing: UI → backend → MCP → backend → UI
+- Simulate real user interactions and input variations
+- Identify and handle edge cases, unexpected input, and communication errors (e.g., timeouts, SSE disconnects)
+- Add fallback behavior or helpful messages for errors
+- Profile and optimize response time, agent feedback, and loading states
+
+**Deliverable:** A stable, polished, and bug-free agent that reliably handles diverse inputs and edge scenarios
