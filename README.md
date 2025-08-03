@@ -1,6 +1,15 @@
-# Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor 🎓
+---
+title: Professor Al Gorithm
+emoji: 🎓
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: "4.44.0"
+app_file: app.py
+pinned: false
+---
 
-![Professor Al Gorithm Logo](logo-light.png)
+# Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor 🎓
 
 This is based off of the Topcoder challenge - [Learn AI – Build and Deploy](https://www.topcoder.com/challenges/355a5497-71c3-4e3a-b200-f53d62564667?tab=details) and [Hugging Face MCP Course](https://huggingface.co/learn/mcp-course/unit0/introduction#welcome-to-the--model-context-protocol-mcp-course)
 

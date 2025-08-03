@@ -203,3 +203,11 @@ MANIFEST
 *.tmp
 
 .claude
+
+# Large binary assets (use external hosting for images)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.ico
