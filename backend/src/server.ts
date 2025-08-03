@@ -420,7 +420,7 @@ app.use("*", (req, res) => {
 
 // Only start server if not in test environment
 if (process.env.NODE_ENV !== "test") {
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`🚀 Professor Al Gorithm API server running on port ${PORT}`);
     console.log(`📚 Health check: http://localhost:${PORT}/health`);
     console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
