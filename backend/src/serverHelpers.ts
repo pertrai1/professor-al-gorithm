@@ -16,10 +16,27 @@ export function createTimeoutPromise(timeoutMs: number): Promise<never> {
 /**
  * Validate input parameters
  */
-export function validateLimit(limit: string | number): number {
-  const parsedLimit = typeof limit === "string" ? parseInt(limit) : limit;
-  if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
-    throw new Error("Limit must be a number between 1 and 50");
+export function validateLimit(limit: string | number | undefined): number {
+  if (limit === undefined) {
+    return 10; // Default value
+  }
+
+  let parsedLimit: number;
+  if (typeof limit === "string") {
+    // Check for decimal numbers
+    if (limit.includes(".")) {
+      throw new Error("Limit must be a valid number");
+    }
+    parsedLimit = parseInt(limit, 10);
+  } else {
+    parsedLimit = limit;
+  }
+
+  if (isNaN(parsedLimit)) {
+    throw new Error("Limit must be a valid number");
+  }
+  if (parsedLimit < 1 || parsedLimit > 100) {
+    throw new Error("Limit must be between 1 and 100");
   }
   return parsedLimit;
 }
@@ -27,12 +44,14 @@ export function validateLimit(limit: string | number): number {
 /**
  * Validate difficulty parameter
  */
-export function validateDifficulty(difficulty: string): string {
+export function validateDifficulty(difficulty: string | undefined): string {
+  if (difficulty === undefined) {
+    return "easy"; // Default value
+  }
+
   const validDifficulties = ["easy", "medium", "hard"];
   if (!validDifficulties.includes(difficulty)) {
-    throw new Error(
-      `Difficulty must be one of: ${validDifficulties.join(", ")}`
-    );
+    throw new Error("Difficulty must be easy, medium, or hard");
   }
   return difficulty;
 }
@@ -41,11 +60,33 @@ export function validateDifficulty(difficulty: string): string {
  * Validate phase parameter
  */
 export function validatePhase(phase: string): string {
-  const validPhases = ["constraints", "ideas", "test-cases", "code"];
+  const validPhases = ["constraints", "ideas", "tests", "code"];
   if (!validPhases.includes(phase)) {
-    throw new Error(`Invalid phase. Must be one of: ${validPhases.join(", ")}`);
+    throw new Error("Invalid phase");
   }
   return phase;
+}
+
+/**
+ * Validate category parameter
+ */
+export function validateCategory(category: string | undefined): string {
+  if (category === undefined) {
+    return "algorithms"; // Default value
+  }
+
+  const validCategories = [
+    "algorithms",
+    "data-structures",
+    "mathematics",
+    "implementation",
+    "geometry",
+    "string-processing",
+  ];
+  if (!validCategories.includes(category)) {
+    throw new Error("Invalid category");
+  }
+  return category;
 }
 
 /**
@@ -66,24 +107,46 @@ export function createErrorResponse(
   code: string;
   message?: string;
   processingTime: number;
+  timestamp: string;
+  originalError?: string;
 } {
   const isTimeout = isTimeoutError(error);
+  const isFetchError =
+    error.message.includes("fetch") || error.message.includes("MCP");
 
-  return {
-    error: isTimeout ? "Request timed out" : "Internal server error",
-    code: isTimeout ? "TIMEOUT" : "INTERNAL_ERROR",
-    message: getErrorMessage(isTimeout),
+  let errorMessage: string;
+  let errorCode: string;
+
+  if (isTimeout) {
+    errorMessage = "Request timed out";
+    errorCode = "TIMEOUT";
+  } else if (isFetchError) {
+    errorMessage = "Unable to fetch data from MCP server";
+    errorCode = "FETCH_ERROR";
+  } else {
+    errorMessage = "An error occurred while processing your request";
+    errorCode = "PROCESSING_ERROR";
+  }
+
+  const response: {
+    error: string;
+    code: string;
+    processingTime: number;
+    timestamp: string;
+    originalError?: string;
+  } = {
+    error: errorMessage,
+    code: errorCode,
     processingTime,
+    timestamp: new Date().toISOString(),
   };
-}
 
-/**
- * Get appropriate error message
- */
-function getErrorMessage(isTimeout: boolean): string {
-  return isTimeout
-    ? "Request timed out. The system may be busy. Please try again."
-    : "Failed to process your request. Please try again.";
+  // Include original error in development
+  if (process.env.NODE_ENV === "development") {
+    response.originalError = error.message;
+  }
+
+  return response;
 }
 
 /**
@@ -175,7 +238,10 @@ export async function processCanvasPhase(
  * Get next phase in canvas progression
  */
 export function getNextPhase(currentPhase: string): string | null {
-  const phases = ["constraints", "ideas", "test-cases", "code"];
+  const phases = ["constraints", "ideas", "tests", "code"];
   const currentIndex = phases.indexOf(currentPhase);
+  if (currentIndex === -1) {
+    return null;
+  }
   return currentIndex < phases.length - 1 ? phases[currentIndex + 1] : null;
 }

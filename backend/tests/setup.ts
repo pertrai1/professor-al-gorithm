@@ -20,15 +20,29 @@ beforeAll(() => {
   }
 });
 
-afterAll(() => {
+afterAll(async () => {
   // Restore original console methods
   console.error = originalConsoleError;
   console.warn = originalConsoleWarn;
   console.log = originalConsoleLog;
+
+  // Clean up any remaining timers and handles
+  await new Promise((resolve) => setTimeout(resolve, 100));
+});
+
+// Global cleanup for better test isolation
+global.afterAll(async () => {
+  // Force cleanup of any remaining handles
+  if (global.gc) {
+    global.gc();
+  }
+
+  // Additional cleanup time
+  await new Promise((resolve) => setTimeout(resolve, 200));
 });
 
 // Global test configuration
 process.env.NODE_ENV = "test";
-process.env.MCP_TIMEOUT = "10000"; // Shorter timeout for tests
-process.env.API_TIMEOUT = "15000";
-process.env.REQUEST_TIMEOUT = "20000";
+process.env.MCP_TIMEOUT = "2000"; // Much shorter timeout for tests (2 seconds)
+process.env.API_TIMEOUT = "3000";
+process.env.REQUEST_TIMEOUT = "5000";

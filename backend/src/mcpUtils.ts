@@ -7,7 +7,7 @@
  * @param sseText - Raw SSE response text
  * @returns Parsed JSON object or null if parsing fails
  */
-export function parseSSEResponse(sseText: string): any {
+export function parseSSEResponse(sseText: string): unknown {
   const lines = sseText.trim().split("\n");
   for (const line of lines) {
     if (line.startsWith("data: ")) {
@@ -90,7 +90,10 @@ export function createMCPInitPayload(
  * @param fallbackToken - Fallback session token to use as session ID
  * @returns Session ID or fallback token
  */
-export function extractSessionId(headers: any, fallbackToken: string): string {
+export function extractSessionId(
+  headers: Record<string, string>,
+  fallbackToken: string
+): string {
   return (
     headers["mcp-session-id"] || headers["x-mcp-session-id"] || fallbackToken
   );

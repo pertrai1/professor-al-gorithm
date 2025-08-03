@@ -36,6 +36,7 @@ export default [
         afterEach: "readonly",
         jest: "readonly",
         it: "readonly",
+        global: "readonly",
       },
     },
     plugins: {
@@ -164,6 +165,7 @@ export default [
         afterEach: "readonly",
         jest: "readonly",
         it: "readonly",
+        global: "readonly",
       },
     },
     plugins: {

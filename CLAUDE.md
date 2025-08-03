@@ -57,24 +57,71 @@ export BACKEND_URL=http://localhost:3000  # Default value
 export NODE_ENV=production  # Hides sensitive error details
 ```
 
-#### Module 7 Environment Variables
+#### Environment Variables
 
 ```bash
 # Performance monitoring
 export ENABLE_PERFORMANCE_MONITORING=true
 
 # Timeout configurations (milliseconds)
-export MCP_TIMEOUT=30000
-export API_TIMEOUT=45000
-export REQUEST_TIMEOUT=60000
+# Production defaults:
+export MCP_TIMEOUT=30000      # MCP server request timeout
+export API_TIMEOUT=30000      # API endpoint timeout
+export REQUEST_TIMEOUT=45000  # Overall request timeout
+
+# Test environment (automatically set in tests):
+export MCP_TIMEOUT=2000       # Faster test execution
+export API_TIMEOUT=3000
+export REQUEST_TIMEOUT=5000
 ```
 
 ### Testing
 
-#### End-to-End Testing (Module 7 Enhanced)
+#### Backend Testing (Node.js/Jest)
 
 ```bash
-# Run comprehensive E2E tests
+# Run all tests (optimized for performance)
+cd backend && npm test
+
+# Run with memory leak detection (for debugging)
+npm run test:debug
+
+# Run fast tests (single worker, force exit)
+npm run test:fast
+
+# Run only E2E tests
+npm run test:e2e
+
+# Run tests in watch mode (development)
+npm run test:watch
+
+# Generate test coverage report
+npm run test:coverage
+```
+
+**Backend Test Features:**
+
+- **71 comprehensive tests** covering all API endpoints
+- **Unit tests** for validation functions and utilities
+- **E2E tests** for complete API workflow validation
+- **Performance tests** for concurrent request handling
+- **Security tests** for XSS, SQL injection prevention
+- **MCP integration tests** with fallback scenarios
+- **Memory leak prevention** with proper server lifecycle management
+- **Optimized runtime**: ~13 seconds (down from 40+ seconds)
+
+**Test Configuration:**
+
+- Jest with TypeScript support (`ts-jest`)
+- Supertest for HTTP endpoint testing
+- Automatic server cleanup and connection management
+- Environment-specific timeout configurations
+- Force exit for CI/CD compatibility
+
+#### Legacy Python E2E Testing
+
+```bash
+# Run Python E2E tests (legacy)
 python test-e2e.py
 
 # Test with custom backend URL
@@ -83,21 +130,6 @@ python test-e2e.py --backend-url http://localhost:3000
 # Install test dependencies
 pip install aiohttp  # Already in requirements.txt
 ```
-
-**Test Coverage:**
-
-- Backend API endpoint validation
-- MCP integration testing with fallback scenarios
-- Error handling and edge case validation
-- Performance monitoring and timeout testing
-- Concurrent request handling
-- Input validation and security testing
-
-**Test Results:**
-
-- Generates `test-results.json` with detailed metrics
-- Success rate tracking and performance analysis
-- Identifies slow endpoints and error patterns
 
 ## Architecture Overview
 
@@ -149,14 +181,15 @@ The project follows a structured 4-phase approach for teaching problem-solving:
 - **Session Management**: Single global session, auto-initialized on first use
 - **Tool Parameters**: Use `difficulty="easy"` for beginners, `category="algorithms"` for skills
 
-#### Module 7 MCP Enhancements
+#### MCP Integration Enhancements
 
-- **Timeout Handling**: 30-second timeouts with automatic retry logic
+- **Environment-based Timeouts**: Configurable timeouts (30s production, 2s test)
 - **Session Recovery**: Automatic session reinitialization on 401 errors
 - **Fallback Behavior**: Educational content when MCP server is unavailable
 - **Error Classification**: Network errors, timeouts, and server errors handled differently
 - **Input Validation**: Parameter validation and sanitization before MCP calls
 - **Performance Monitoring**: Response time tracking and slow request detection
+- **Category Validation**: Skills endpoint validates category parameters
 
 ### TypeScript Configuration
 
@@ -189,15 +222,16 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 - Console logging for debugging MCP interactions
 - Session initialization happens automatically on first tool call
 
-#### Module 7 Enhanced Patterns
+#### Enhanced Implementation Patterns
 
-- **Retry Logic**: Automatic retry for network failures (not timeouts)
-- **Input Sanitization**: All user inputs validated and sanitized
+- **Environment-based Configuration**: Timeouts adapt to production vs test environments
+- **Input Sanitization**: All user inputs validated and sanitized with proper TypeScript types
 - **Performance Monitoring**: Built-in metrics collection and analysis
 - **Graceful Degradation**: System continues operating when MCP is unavailable
-- **Timeout Management**: Request-level timeouts with user-friendly messages
-- **Error Classification**: Different handling for network, timeout, and server errors
+- **Timeout Management**: Configurable request-level timeouts with fallback responses
+- **Error Classification**: Structured error responses with timestamps and processing times
 - **Security Hardening**: Protection against XSS, SQL injection, and other attacks
+- **Memory Management**: Proper server lifecycle management prevents resource leaks
 
 ### Dependencies
 
@@ -210,12 +244,14 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 - **express**: Web framework for API server
 - **cors**: Cross-origin resource sharing middleware
 
-#### Module 7 Enhanced Components
+#### Enhanced Backend Components
 
 - **performanceMonitor.ts**: Performance tracking and health monitoring
-- **Enhanced error handling**: Comprehensive error classification and response
-- **Timeout management**: Request-level timeout handling with fallbacks
-- **Input validation**: Parameter validation and sanitization utilities
+- **serverHelpers.ts**: Validation functions with TypeScript types and fallback handling
+- **Enhanced error handling**: Comprehensive error classification with timestamps
+- **Timeout management**: Environment-based timeout configuration
+- **Input validation**: Parameter validation with category, difficulty, and limit checks
+- **Test infrastructure**: Jest configuration with memory leak prevention
 
 #### Frontend Dependencies
 
@@ -227,13 +263,14 @@ MCP_SESSION_TOKEN=<64-char-hex-token>
 
 The Express.js server provides RESTful endpoints for the Gradio frontend:
 
-#### Module 7 Enhanced Features
+#### Enhanced API Features
 
 - **Performance Monitoring**: All endpoints include response time tracking
-- **Enhanced Error Handling**: Structured error responses with error codes
-- **Input Validation**: Comprehensive validation for all request parameters
-- **Timeout Management**: Request-level timeouts with graceful handling
-- **Health Monitoring**: Extended health checks with performance metrics
+- **Environment-based Timeouts**: Configurable timeouts for production vs test
+- **Enhanced Error Handling**: Structured error responses with timestamps and processing times
+- **Input Validation**: Comprehensive validation for all request parameters including categories
+- **Health Monitoring**: Extended health checks with performance metrics and system status
+- **Memory Management**: Proper connection lifecycle management
 
 #### Core Endpoints
 
@@ -247,15 +284,15 @@ The Express.js server provides RESTful endpoints for the Gradio frontend:
 - `POST /api/skills` - Fetch available skills (JSON body, for Gradio frontend)
 - `POST /api/canvas` - Algorithm Design Canvas phase processing
 
-#### Module 7 Enhanced Error Responses
+#### Enhanced Error Responses
 
-All endpoints now return structured error responses:
+All endpoints return structured error responses with comprehensive information:
 
 ```json
 {
   "error": "Error description",
   "code": "ERROR_CODE",
-  "timestamp": "2024-01-01T00:00:00.000Z",
+  "timestamp": "2025-08-03T00:00:00.000Z",
   "processingTime": 1234
 }
 ```
@@ -264,9 +301,18 @@ All endpoints now return structured error responses:
 
 - `INVALID_MESSAGE` - Message validation failed
 - `MESSAGE_TOO_LONG` - Message exceeds length limit
-- `TIMEOUT` - Request timed out
+- `INVALID_CATEGORY` - Invalid skills category parameter
+- `INVALID_LIMIT` - Invalid limit parameter (must be 1-100)
+- `TIMEOUT` - Request timed out (environment-specific timeouts)
 - `FETCH_ERROR` - MCP server communication failed
 - `PROCESSING_ERROR` - Canvas processing failed
+
+**Error Response Features:**
+
+- Timestamps for debugging and monitoring
+- Processing time tracking for performance analysis
+- Environment-aware error messages (detailed in dev, generic in production)
+- Fallback educational responses when MCP services are unavailable
 
 #### Example Usage
 
@@ -325,15 +371,25 @@ The Gradio frontend (`app.py`) provides:
 ├── Dockerfile            # Multi-stage build for Hugging Face Spaces
 ├── backend/
 │   ├── src/
-│   │   ├── server.ts     # Express API server
-│   │   ├── mcpService.ts # MCP integration & education logic
-│   │   ├── mcpUtils.ts   # MCP utilities (headers, parsing)
-│   │   └── index.ts      # Console testing interface
-│   ├── package.json      # Node.js dependencies
-│   ├── tsconfig.json     # TypeScript configuration
-│   └── .env              # Environment variables (not committed)
+│   │   ├── server.ts          # Express API server with environment-based timeouts
+│   │   ├── serverHelpers.ts   # Validation functions and error handling
+│   │   ├── mcpService.ts      # MCP integration & education logic
+│   │   ├── mcpUtils.ts        # MCP utilities (headers, parsing)
+│   │   ├── performanceMonitor.ts # Performance tracking and health monitoring
+│   │   └── index.ts           # Console testing interface
+│   ├── tests/
+│   │   ├── setup.ts           # Jest test configuration and cleanup
+│   │   ├── unit/              # Unit tests for individual functions
+│   │   │   ├── serverHelpers.test.ts
+│   │   │   └── performanceMonitor.test.ts
+│   │   └── e2e/               # End-to-end API tests
+│   │       └── api.test.ts    # Comprehensive API testing suite
+│   ├── jest.config.js     # Jest configuration with memory leak prevention
+│   ├── package.json       # Node.js dependencies and test scripts
+│   ├── tsconfig.json      # TypeScript configuration
+│   └── .env               # Environment variables (not committed)
 ├── docs/
 │   └── topcoder-challenge-details.md  # Challenge documentation
-├── CLAUDE.md             # This file - development guidelines
-└── README.md             # Project overview and documentation
+├── CLAUDE.md              # This file - development guidelines
+└── README.md              # Project overview and documentation
 ```

@@ -9,6 +9,7 @@ import {
   validateLimit,
   validateDifficulty,
   validatePhase,
+  validateCategory,
   createErrorResponse,
   processCanvasPhase,
   getNextPhase,
@@ -18,6 +19,10 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Configurable timeouts
+const API_TIMEOUT = parseInt(process.env.API_TIMEOUT || "30000");
+const REQUEST_TIMEOUT = parseInt(process.env.REQUEST_TIMEOUT || "45000");
 
 // Middleware
 app.use(cors());
@@ -88,7 +93,7 @@ app.post("/api/chat", async (req, res) => {
 
     const response = await Promise.race([
       processQuery(message.trim(), conversationId),
-      createTimeoutPromise(45000),
+      createTimeoutPromise(REQUEST_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;
@@ -123,7 +128,7 @@ app.get("/api/challenges", async (req, res) => {
 
     const challenges = await Promise.race([
       getChallenges({ limit: parsedLimit, difficulty: validDifficulty }),
-      createTimeoutPromise(30000),
+      createTimeoutPromise(API_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;
@@ -168,7 +173,7 @@ app.post("/api/challenges", async (req, res) => {
 
     const challenges = await Promise.race([
       getChallenges({ limit: parsedLimit, difficulty: validDifficulty }),
-      createTimeoutPromise(30000),
+      createTimeoutPromise(API_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;
@@ -209,10 +214,11 @@ app.get("/api/skills", async (req, res) => {
     const { limit = 10, category = "algorithms" } = req.query;
 
     const parsedLimit = validateLimit(limit as string);
+    const validCategory = validateCategory(category as string);
 
     const skills = await Promise.race([
-      getSkills({ limit: parsedLimit, category: category as string }),
-      createTimeoutPromise(30000),
+      getSkills({ limit: parsedLimit, category: validCategory }),
+      createTimeoutPromise(API_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;
@@ -228,10 +234,16 @@ app.get("/api/skills", async (req, res) => {
     const processingTime = Date.now() - startTime;
     console.error(`Error fetching skills (${processingTime}ms):`, error);
 
-    if (error instanceof Error && error.message.includes("must be")) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("must be") ||
+        error.message.includes("Invalid category"))
+    ) {
       return res.status(400).json({
         error: error.message,
-        code: "INVALID_LIMIT",
+        code: error.message.includes("category")
+          ? "INVALID_CATEGORY"
+          : "INVALID_LIMIT",
       });
     }
 
@@ -251,10 +263,11 @@ app.post("/api/skills", async (req, res) => {
     const { limit = 10, category = "algorithms" } = req.body;
 
     const parsedLimit = validateLimit(limit as string);
+    const validCategory = validateCategory(category as string);
 
     const skills = await Promise.race([
-      getSkills({ limit: parsedLimit, category: category as string }),
-      createTimeoutPromise(30000),
+      getSkills({ limit: parsedLimit, category: validCategory }),
+      createTimeoutPromise(API_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;
@@ -270,10 +283,16 @@ app.post("/api/skills", async (req, res) => {
     const processingTime = Date.now() - startTime;
     console.error(`Error fetching skills (${processingTime}ms):`, error);
 
-    if (error instanceof Error && error.message.includes("must be")) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("must be") ||
+        error.message.includes("Invalid category"))
+    ) {
       return res.status(400).json({
         error: error.message,
-        code: "INVALID_LIMIT",
+        code: error.message.includes("category")
+          ? "INVALID_CATEGORY"
+          : "INVALID_LIMIT",
       });
     }
 
@@ -325,7 +344,7 @@ app.post("/api/canvas", async (req, res) => {
 
     const feedback = await Promise.race([
       processCanvasPhase(validPhase, content.trim(), challengeId),
-      createTimeoutPromise(30000),
+      createTimeoutPromise(API_TIMEOUT),
     ]);
 
     const processingTime = Date.now() - startTime;

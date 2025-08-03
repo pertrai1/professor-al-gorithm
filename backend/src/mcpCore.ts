@@ -175,7 +175,10 @@ export async function initializeMCPSession(): Promise<boolean> {
       headers,
     });
 
-    sessionId = extractSessionId(response.headers, MCP_SESSION_TOKEN);
+    sessionId = extractSessionId(
+      response.headers as Record<string, string>,
+      MCP_SESSION_TOKEN
+    );
 
     console.log(
       `MCP session initialized with ID: ${sessionId?.slice(0, 20)}...`
