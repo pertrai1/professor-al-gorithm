@@ -399,10 +399,14 @@ app.use("*", (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Professor Al Gorithm API server running on port ${PORT}`);
-  console.log(`📚 Health check: http://localhost:${PORT}/health`);
-  console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
-});
+// Only start server if not in test environment
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, () => {
+    console.log(`🚀 Professor Al Gorithm API server running on port ${PORT}`);
+    console.log(`📚 Health check: http://localhost:${PORT}/health`);
+    console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
+  });
+}
 
+export { app };
 export default app;
