@@ -20,8 +20,10 @@ import asyncio
 import aiohttp
 import time
 
-# Configuration
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3000")
+# Configuration - Force 127.0.0.1 for Hugging Face Spaces
+BACKEND_URL = "http://127.0.0.1:3000"  # Force this for now
+print(f"🔗 Backend URL configured as: {BACKEND_URL}")
+print(f"🌍 Environment variables: SPACE_ID={os.getenv('SPACE_ID', 'None')}, GRADIO_SERVER_NAME={os.getenv('GRADIO_SERVER_NAME', 'None')}")
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
@@ -71,7 +73,9 @@ class ProfessorAlGorithm:
                         await asyncio.sleep(2)  # Wait before retry
                         continue
                     else:
-                        return f"🌐 Connection error after {max_retries} attempts: {str(e)}\n\n**Troubleshooting Tips:**\n- The backend service may still be starting up\n- Try refreshing the page and waiting a minute\n- Check if you're on Hugging Face Spaces (services need time to boot)\n\n" + self._get_fallback_challenges()
+                        print(f"❌ Backend connection failed completely: {str(e)}")
+                        print(f"🔗 Attempted to connect to: {BACKEND_URL}")
+                        return f"🔧 Backend service unavailable. Using offline mode.\n\n" + self._get_fallback_challenges()
                         
         except Exception as e:
             print(f"Unexpected error in get_challenges: {e}")  # Log for debugging
@@ -137,7 +141,9 @@ Description: Find the contiguous subarray within a one-dimensional array of numb
                         await asyncio.sleep(2)  # Wait before retry
                         continue
                     else:
-                        return f"🌐 Connection error after {max_retries} attempts: {str(e)}\n\n**Troubleshooting Tips:**\n- The backend service may still be starting up\n- Try refreshing the page and waiting a minute\n- Check if you're on Hugging Face Spaces (services need time to boot)\n\n" + self._get_fallback_skills(category)
+                        print(f"❌ Backend connection failed completely: {str(e)}")
+                        print(f"🔗 Attempted to connect to: {BACKEND_URL}")
+                        return f"🔧 Backend service unavailable. Using offline mode.\n\n" + self._get_fallback_skills(category)
                         
         except Exception as e:
             print(f"Unexpected error in get_skills: {e}")  # Log for debugging
