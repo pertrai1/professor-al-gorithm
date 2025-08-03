@@ -49,9 +49,17 @@ echo "💾 Memory: $(free -h | head -2)"\n\
 cd /app/backend && npm run start &\n\
 BACKEND_PID=$!\n\
 echo "⏳ Waiting for backend to start (PID: $BACKEND_PID)..."\n\
-sleep 10\n\
-echo "🔍 Checking backend health..."\n\
-curl -f http://localhost:3000/health || echo "⚠️  Backend health check failed"\n\
+# Wait up to 30 seconds for backend to be ready\n\
+for i in {1..30}; do\n\
+  if curl -f http://localhost:3000/health >/dev/null 2>&1; then\n\
+    echo "✅ Backend is ready after ${i} seconds"\n\
+    break\n\
+  fi\n\
+  echo "⏳ Backend not ready yet, waiting... (attempt $i/30)"\n\
+  sleep 1\n\
+done\n\
+echo "🔍 Final backend health check..."\n\
+curl -f http://localhost:3000/health || echo "⚠️  Backend health check failed - continuing anyway"\n\
 echo "🎨 Starting Gradio frontend on port 7860..."\n\
 cd /app && python app.py' > /app/start.sh && chmod +x /app/start.sh
 

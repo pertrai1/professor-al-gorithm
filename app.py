@@ -31,37 +31,48 @@ class ProfessorAlGorithm:
         self.session_data = {}
     
     async def get_challenges(self, difficulty: str = "easy") -> str:
-        """Fetch coding challenges from MCP server via backend"""
+        """Fetch coding challenges from MCP server via backend with retry logic"""
         try:
             # Validate input
             if difficulty not in ['easy', 'medium', 'hard']:
                 difficulty = 'easy'
                 
-            timeout = aiohttp.ClientTimeout(total=45)  # 45 second timeout
-            
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(
-                    f"{BACKEND_URL}/api/challenges",
-                    json={"difficulty": difficulty, "limit": 5},
-                    headers={'Content-Type': 'application/json'}
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return self._format_challenges_for_display(data)
-                    elif response.status == 400:
-                        error_data = await response.json() if response.content_type == 'application/json' else {}
-                        return f"Invalid request: {error_data.get('error', 'Bad request')}"
-                    elif response.status == 408:
-                        return "⏰ Request timed out. The system may be busy. Please try again in a moment."
-                    elif response.status >= 500:
-                        return "🔧 Server is temporarily unavailable. Using fallback challenges..\n\n" + self._get_fallback_challenges()
+            # Retry logic for Hugging Face Spaces startup
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    timeout = aiohttp.ClientTimeout(total=30)  # Reduced timeout per attempt
+                    
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.post(
+                            f"{BACKEND_URL}/api/challenges",
+                            json={"difficulty": difficulty, "limit": 5},
+                            headers={'Content-Type': 'application/json'}
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                return self._format_challenges_for_display(data)
+                            elif response.status == 400:
+                                error_data = await response.json() if response.content_type == 'application/json' else {}
+                                return f"Invalid request: {error_data.get('error', 'Bad request')}"
+                            elif response.status == 408:
+                                return "⏰ Request timed out. The system may be busy. Please try again in a moment."
+                            elif response.status >= 500:
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(2)  # Wait before retry
+                                    continue
+                                return "🔧 Server is temporarily unavailable. Using fallback challenges...\n\n" + self._get_fallback_challenges()
+                            else:
+                                return f"Unexpected error (Status {response.status}). Using fallback challenges...\n\n" + self._get_fallback_challenges()
+                                
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < max_retries - 1:
+                        print(f"Connection attempt {attempt + 1} failed: {e}. Retrying...")
+                        await asyncio.sleep(2)  # Wait before retry
+                        continue
                     else:
-                        return f"Unexpected error (Status {response.status}). Using fallback challenges...\n\n" + self._get_fallback_challenges()
+                        return f"🌐 Connection error after {max_retries} attempts: {str(e)}\n\n**Troubleshooting Tips:**\n- The backend service may still be starting up\n- Try refreshing the page and waiting a minute\n- Check if you're on Hugging Face Spaces (services need time to boot)\n\n" + self._get_fallback_challenges()
                         
-        except asyncio.TimeoutError:
-            return "⏰ Connection timed out. Please check your internet connection and try again.\n\n" + self._get_fallback_challenges()
-        except aiohttp.ClientError as e:
-            return f"🌐 Connection error: {str(e)}\n\n" + self._get_fallback_challenges()
         except Exception as e:
             print(f"Unexpected error in get_challenges: {e}")  # Log for debugging
             return "❌ An unexpected error occurred. Using fallback challenges...\n\n" + self._get_fallback_challenges()
@@ -85,38 +96,49 @@ Description: Find the contiguous subarray within a one-dimensional array of numb
 💡 **Pro Tip**: Start with the easiest problem and work your way up!"""
     
     async def get_skills(self, category: str = "algorithms") -> str:
-        """Fetch skills data from MCP server via backend"""
+        """Fetch skills data from MCP server via backend with retry logic"""
         try:
             # Validate input
             valid_categories = ['algorithms', 'data-structures', 'dynamic-programming', 'graphs']
             if category not in valid_categories:
                 category = 'algorithms'
                 
-            timeout = aiohttp.ClientTimeout(total=45)  # 45 second timeout
-            
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(
-                    f"{BACKEND_URL}/api/skills",
-                    json={"category": category, "limit": 10},
-                    headers={'Content-Type': 'application/json'}
-                ) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return self._format_skills_for_display(data)
-                    elif response.status == 400:
-                        error_data = await response.json() if response.content_type == 'application/json' else {}
-                        return f"Invalid request: {error_data.get('error', 'Bad request')}"
-                    elif response.status == 408:
-                        return "⏰ Request timed out. The system may be busy. Please try again in a moment."
-                    elif response.status >= 500:
-                        return "🔧 Server is temporarily unavailable. Using fallback skills...\n\n" + self._get_fallback_skills(category)
+            # Retry logic for Hugging Face Spaces startup
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    timeout = aiohttp.ClientTimeout(total=30)  # Reduced timeout per attempt
+                    
+                    async with aiohttp.ClientSession(timeout=timeout) as session:
+                        async with session.post(
+                            f"{BACKEND_URL}/api/skills",
+                            json={"category": category, "limit": 10},
+                            headers={'Content-Type': 'application/json'}
+                        ) as response:
+                            if response.status == 200:
+                                data = await response.json()
+                                return self._format_skills_for_display(data)
+                            elif response.status == 400:
+                                error_data = await response.json() if response.content_type == 'application/json' else {}
+                                return f"Invalid request: {error_data.get('error', 'Bad request')}"
+                            elif response.status == 408:
+                                return "⏰ Request timed out. The system may be busy. Please try again in a moment."
+                            elif response.status >= 500:
+                                if attempt < max_retries - 1:
+                                    await asyncio.sleep(2)  # Wait before retry
+                                    continue
+                                return "🔧 Server is temporarily unavailable. Using fallback skills...\n\n" + self._get_fallback_skills(category)
+                            else:
+                                return f"Unexpected error (Status {response.status}). Using fallback skills...\n\n" + self._get_fallback_skills(category)
+                                
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < max_retries - 1:
+                        print(f"Connection attempt {attempt + 1} failed: {e}. Retrying...")
+                        await asyncio.sleep(2)  # Wait before retry
+                        continue
                     else:
-                        return f"Unexpected error (Status {response.status}). Using fallback skills...\n\n" + self._get_fallback_skills(category)
+                        return f"🌐 Connection error after {max_retries} attempts: {str(e)}\n\n**Troubleshooting Tips:**\n- The backend service may still be starting up\n- Try refreshing the page and waiting a minute\n- Check if you're on Hugging Face Spaces (services need time to boot)\n\n" + self._get_fallback_skills(category)
                         
-        except asyncio.TimeoutError:
-            return "⏰ Connection timed out. Please check your internet connection and try again.\n\n" + self._get_fallback_skills(category)
-        except aiohttp.ClientError as e:
-            return f"🌐 Connection error: {str(e)}\n\n" + self._get_fallback_skills(category)
         except Exception as e:
             print(f"Unexpected error in get_skills: {e}")  # Log for debugging
             return "❌ An unexpected error occurred. Using fallback skills...\n\n" + self._get_fallback_skills(category)
@@ -386,9 +408,8 @@ def create_gradio_interface():
         # Status and Progress with enhanced information
         with gr.Row():
             status_display = gr.Markdown(
-                f"""**Status:** Ready to start learning! 🚀  
-                **Backend:** Connected to {BACKEND_URL}  
-                **System:** Professor Al Gorithm v2.0 - Enhanced with Module 7 improvements
+                """**Status:** Ready to start learning! 🚀  
+                **System:** Professor Al Gorithm
                 
                 💡 **Tips:**
                 - Start with an easy challenge to warm up
