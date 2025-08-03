@@ -2,15 +2,13 @@ import js from "@eslint/js";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
 import prettierConfig from "eslint-config-prettier";
-import prettierPlugin from "eslint-plugin-prettier";
 import importPlugin from "eslint-plugin-import";
 import nodePlugin from "eslint-plugin-node";
+import prettierPlugin from "eslint-plugin-prettier";
 
 export default [
-  // Base JS config
   js.configs.recommended,
 
-  // TypeScript files
   {
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
@@ -40,10 +38,8 @@ export default [
       ...tseslint.configs.recommended.rules,
       ...prettierConfig.rules,
 
-      // Prettier integration
       "prettier/prettier": "error",
 
-      // TypeScript specific
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
@@ -57,7 +53,6 @@ export default [
       "@typescript-eslint/explicit-module-boundary-types": "off",
       "@typescript-eslint/no-non-null-assertion": "warn",
 
-      // Import rules
       "import/order": [
         "error",
         {
@@ -76,33 +71,29 @@ export default [
           },
         },
       ],
-      "import/no-unresolved": "off", // TypeScript handles this
+      "import/no-unresolved": "off",
 
-      // Node.js rules
-      "node/no-missing-import": "off", // TypeScript handles this
+      "node/no-missing-import": "off",
       "node/no-unsupported-features/es-syntax": "off",
 
-      // General rules
-      "no-console": "off", // Allow console in Node.js backend
+      "no-console": "off",
       "no-debugger": "error",
       "prefer-const": "error",
       "no-var": "error",
 
-      complexity: ["error", 15], // Increased complexity limit for Module 7
-      "max-depth": ["error", 5], // Maximum nesting depth
+      complexity: ["error", 15],
+      "max-depth": ["error", 5],
       "max-lines": [
         "error",
         { max: 350, skipBlankLines: true, skipComments: true },
-      ], // Increased max lines for Module 7
+      ],
       "max-lines-per-function": [
         "error",
         { max: 100, skipBlankLines: true, skipComments: true },
-      ], // Increased max lines per function
-      "max-params": ["error", 4], // Increased max params for middleware
+      ],
+      "max-params": ["error", 4],
     },
   },
-
-  // JavaScript files
   {
     files: ["**/*.js", "**/*.jsx"],
     languageOptions: {
@@ -126,14 +117,12 @@ export default [
     rules: {
       ...prettierConfig.rules,
       "prettier/prettier": "error",
-      "no-console": "off", // Allow console in Node.js backend
+      "no-console": "off",
       "no-debugger": "error",
       "prefer-const": "error",
       "no-var": "error",
     },
   },
-
-  // Global ignores
   {
     ignores: [
       "node_modules/**",
@@ -142,6 +131,8 @@ export default [
       "coverage/**",
       "*.min.js",
       "backend/node_modules/**",
+      "backend/dist/**",
+      "backend/src/**/*.js",
       "frontend/node_modules/**",
       "frontend/dist/**",
       "frontend/build/**",

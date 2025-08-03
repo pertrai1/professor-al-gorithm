@@ -2,13 +2,14 @@
   "name": "professor-al-gorithm",
   "version": "1.0.0",
   "description": "Virtual AI professor for learning to solve coding challenged",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node src/server.ts",
-    "start": "ts-node src/server.ts",
+    "start": "node dist/server.js",
     "build": "tsc",
-    "console": "ts-node src/index.ts"
+    "console": "ts-node src/index.ts",
+    "clean": "rm -rf dist"
   },
   "repository": {
     "type": "git",

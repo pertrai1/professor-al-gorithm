@@ -130,7 +130,7 @@ class PerformanceMonitor {
   getHealthStatus(): {
     status: "healthy" | "warning" | "critical";
     message: string;
-    details: ReturnType<typeof this.getStats>;
+    details: ReturnType<PerformanceMonitor["getStats"]>;
   } {
     const stats = this.getStats(5); // Last 5 minutes
 
@@ -180,11 +180,8 @@ class PerformanceMonitor {
     ) => {
       const startTime = Date.now();
 
-      // Capture the original end function
-      const originalEnd = res.end;
-
-      // Override the end function to capture metrics
-      res.end = function (...args: Parameters<typeof originalEnd>) {
+      // Use finish event instead of overriding res.end
+      res.on("finish", () => {
         const responseTime = Date.now() - startTime;
 
         monitor.recordMetric({
@@ -198,10 +195,7 @@ class PerformanceMonitor {
               ? `${res.statusCode} ${res.statusMessage}`
               : undefined,
         });
-
-        // Call the original end function
-        originalEnd.apply(this, args);
-      };
+      });
 
       next();
     };
