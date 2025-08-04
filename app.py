@@ -296,9 +296,11 @@ class ProfessorAlGorithm:
     def __init__(self):
         self.current_phase = "constraints"
         self.session_data = {}
+        self.selected_challenge = None
+        self.available_challenges = []
     
-    async def get_challenges(self, difficulty: str = "easy") -> str:
-        """Get coding challenges from Topcoder MCP or fallback content"""
+    async def get_challenges(self, difficulty: str = "easy") -> Tuple[str, list]:
+        """Get coding challenges and return both display text and challenge data"""
         # Validate input
         if difficulty not in ['easy', 'medium', 'hard']:
             difficulty = 'easy'
@@ -313,7 +315,10 @@ class ProfessorAlGorithm:
                 
                 if mcp_data and 'challenges' in mcp_data:
                     print(f"✅ Got {len(mcp_data['challenges'])} challenges from MCP")
-                    return self._format_mcp_challenges(mcp_data, difficulty)
+                    challenges = mcp_data['challenges']
+                    self.available_challenges = challenges
+                    display_text = self._format_mcp_challenges(mcp_data, difficulty)
+                    return display_text, challenges
                 else:
                     print(f"⚠️ MCP returned no challenges: {mcp_data}")
                     
@@ -327,7 +332,156 @@ class ProfessorAlGorithm:
         # Fallback to educational content
         print(f"📚 Using educational {difficulty} challenges")
         await asyncio.sleep(0.5)  # Simulate fetch delay
-        return self._get_fallback_challenges(difficulty)
+        challenges = self._get_fallback_challenge_data(difficulty)
+        self.available_challenges = challenges
+        display_text = self._format_challenge_selection(challenges, difficulty)
+        return display_text, challenges
+    
+    def _get_fallback_challenge_data(self, difficulty: str = "easy") -> list:
+        """Get structured challenge data for selection"""
+        
+        challenges_by_difficulty = {
+            'easy': [
+                {
+                    "id": "two-sum",
+                    "name": "Two Sum Problem",
+                    "description": "Given an array of integers and a target sum, find two numbers that add up to the target.",
+                    "skills": ["Hash tables", "Array traversal"],
+                    "difficulty": "easy",
+                    "examples": [
+                        {"input": "[2,7,11,15], target=9", "output": "[0,1]"},
+                        {"input": "[3,2,4], target=6", "output": "[1,2]"}
+                    ]
+                },
+                {
+                    "id": "valid-parentheses",
+                    "name": "Valid Parentheses",
+                    "description": "Given a string containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.",
+                    "skills": ["Stack data structure", "String processing"],
+                    "difficulty": "easy",
+                    "examples": [
+                        {"input": "\"()\"", "output": "true"},
+                        {"input": "\"([)]\"", "output": "false"}
+                    ]
+                },
+                {
+                    "id": "palindrome-check",
+                    "name": "Palindrome Check",
+                    "description": "Determine if a given string reads the same forward and backward.",
+                    "skills": ["Two pointers technique", "String manipulation"],
+                    "difficulty": "easy",
+                    "examples": [
+                        {"input": "\"racecar\"", "output": "true"},
+                        {"input": "\"hello\"", "output": "false"}
+                    ]
+                },
+                {
+                    "id": "merge-sorted-lists",
+                    "name": "Merge Two Sorted Lists",
+                    "description": "Merge two sorted linked lists and return it as a new sorted list.",
+                    "skills": ["Linked lists", "Merge algorithms"],
+                    "difficulty": "easy",
+                    "examples": [
+                        {"input": "[1,2,4], [1,3,4]", "output": "[1,1,2,3,4,4]"},
+                        {"input": "[], [0]", "output": "[0]"}
+                    ]
+                },
+                {
+                    "id": "remove-duplicates",
+                    "name": "Remove Duplicates",
+                    "description": "Remove duplicates from a sorted array in-place.",
+                    "skills": ["Two pointers", "Array manipulation"],
+                    "difficulty": "easy",
+                    "examples": [
+                        {"input": "[1,1,2]", "output": "[1,2]"},
+                        {"input": "[0,0,1,1,1,2,2,3,3,4]", "output": "[0,1,2,3,4]"}
+                    ]
+                }
+            ],
+            'medium': [
+                {
+                    "id": "maximum-subarray",
+                    "name": "Maximum Subarray (Kadane's Algorithm)",
+                    "description": "Find the contiguous subarray within a one-dimensional array that has the largest sum.",
+                    "skills": ["Dynamic programming", "Optimization"],
+                    "difficulty": "medium",
+                    "examples": [
+                        {"input": "[-2,1,-3,4,-1,2,1,-5,4]", "output": "6 (subarray [4,-1,2,1])"},
+                        {"input": "[1]", "output": "1"}
+                    ]
+                },
+                {
+                    "id": "longest-substring",
+                    "name": "Longest Substring Without Repeating Characters",
+                    "description": "Find the length of the longest substring without repeating characters.",
+                    "skills": ["Sliding window", "Hash maps"],
+                    "difficulty": "medium",
+                    "examples": [
+                        {"input": "\"abcabcbb\"", "output": "3 (\"abc\")"},
+                        {"input": "\"bbbbb\"", "output": "1 (\"b\")"}
+                    ]
+                }
+            ],
+            'hard': [
+                {
+                    "id": "median-two-arrays",
+                    "name": "Median of Two Sorted Arrays",
+                    "description": "Find the median of two sorted arrays with optimal time complexity.",
+                    "skills": ["Binary search", "Divide and conquer"],
+                    "difficulty": "hard",
+                    "examples": [
+                        {"input": "[1,3], [2]", "output": "2.0"},
+                        {"input": "[1,2], [3,4]", "output": "2.5"}
+                    ]
+                }
+            ]
+        }
+        
+        return challenges_by_difficulty.get(difficulty, challenges_by_difficulty['easy'])
+    
+    def _format_challenge_selection(self, challenges: list, difficulty: str) -> str:
+        """Format challenges for selection UI"""
+        result = f"## 🎯 Select a {difficulty.title()} Challenge\n\n"
+        result += "Choose a challenge to work on using the Algorithm Design Canvas:\n\n"
+        
+        for i, challenge in enumerate(challenges, 1):
+            result += f"**{i}. {challenge['name']}**\n"
+            result += f"📝 {challenge['description']}\n"
+            result += f"🛠️ Skills: {', '.join(challenge['skills'])}\n"
+            if 'examples' in challenge and challenge['examples']:
+                example = challenge['examples'][0]
+                result += f"💡 Example: {example['input']} → {example['output']}\n"
+            result += "\n"
+        
+        result += "🎨 **Next Step**: Click on a challenge number below to select it and start working!"
+        return result
+    
+    def select_challenge(self, challenge_index: int) -> str:
+        """Select a challenge and prepare for Algorithm Design Canvas"""
+        if not self.available_challenges:
+            return "❌ No challenges available. Please get challenges first."
+        
+        if challenge_index < 1 or challenge_index > len(self.available_challenges):
+            return f"❌ Invalid selection. Please choose a number between 1 and {len(self.available_challenges)}."
+        
+        self.selected_challenge = self.available_challenges[challenge_index - 1]
+        self.current_phase = "constraints"
+        
+        challenge = self.selected_challenge
+        result = f"## ✅ Challenge Selected: {challenge['name']}\n\n"
+        result += f"**Description:** {challenge['description']}\n\n"
+        result += f"**Skills Focus:** {', '.join(challenge['skills'])}\n\n"
+        
+        if 'examples' in challenge and challenge['examples']:
+            result += "**Examples:**\n"
+            for ex in challenge['examples'][:2]:  # Show up to 2 examples
+                result += f"• Input: {ex['input']} → Output: {ex['output']}\n"
+            result += "\n"
+        
+        result += "🎨 **Ready for Algorithm Design Canvas!**\n"
+        result += "Now click on the **1️⃣ Constraints** tab to start working through this challenge step by step."
+        
+        return result
     
     def _get_fallback_challenges(self, difficulty: str = "easy") -> str:
         """Provide educational challenges based on difficulty level"""
@@ -580,51 +734,108 @@ class ProfessorAlGorithm:
         return formatted
     
     def guide_canvas_phase(self, phase: str, user_input: str) -> Tuple[str, str]:
-        """Guide user through Algorithm Design Canvas phases"""
+        """Guide user through Algorithm Design Canvas phases with context awareness"""
+        
+        # Get challenge-specific context
+        challenge_context = ""
+        if self.selected_challenge:
+            challenge = self.selected_challenge
+            challenge_context = f"\n\n**📋 Current Challenge: {challenge['name']}**\n"
+            challenge_context += f"*{challenge['description']}*\n"
+            if 'examples' in challenge and challenge['examples']:
+                challenge_context += f"*Example: {challenge['examples'][0]['input']} → {challenge['examples'][0]['output']}*\n"
+        
         phase_guidance = {
             "constraints": {
                 "title": "Phase 1: Define Constraints",
-                "guidance": """Let's start by understanding the problem constraints:
+                "guidance": f"""Let's analyze the constraints for your selected challenge:{challenge_context}
+
+🔍 **Key Questions to Consider:**
 
 1. **Input Format**: What type of data are you working with?
-2. **Output Format**: What should your solution return?
-3. **Performance Requirements**: Time and space complexity limits?
-4. **Edge Cases**: What special cases should you consider?
+   - What data structures are involved?
+   - What are the input ranges or limits?
 
-Share your problem statement and I'll help you identify the key constraints."""
+2. **Output Format**: What should your solution return?
+   - Exact format required?
+   - Any specific data type?
+
+3. **Performance Requirements**: Are there time/space complexity limits?
+   - How many elements might you process?
+   - Memory constraints?
+
+4. **Edge Cases**: What special scenarios should you handle?
+   - Empty inputs, null values?
+   - Minimum/maximum cases?
+
+💡 **Your Task**: Analyze the challenge above and define the constraints clearly."""
             },
             "ideas": {
                 "title": "Phase 2: Brainstorm Solution Ideas", 
-                "guidance": """Now let's explore different approaches:
+                "guidance": f"""Now let's explore different approaches for your challenge:{challenge_context}
+
+🧠 **Brainstorming Framework:**
 
 1. **Brute Force**: What's the most straightforward solution?
-2. **Optimized Approaches**: Can we improve time/space complexity?
-3. **Algorithm Patterns**: Which common patterns might apply?
+   - How would you solve this step by step?
+   - Don't worry about efficiency yet!
+
+2. **Pattern Recognition**: What algorithmic patterns might apply?
+   {f"- Consider: {', '.join(self.selected_challenge['skills'])}" if self.selected_challenge else ""}
+   - Hash tables, two pointers, sliding window, etc.?
+
+3. **Optimized Approaches**: Can we improve time/space complexity?
+   - What's the bottleneck in the brute force approach?
+   - Which data structures could help?
+
 4. **Trade-offs**: What are the pros and cons of each approach?
 
-What ideas do you have for solving this problem?"""
+💡 **Your Task**: Share your solution ideas and I'll help you evaluate them!"""
             },
             "tests": {
                 "title": "Phase 3: Design Test Cases",
-                "guidance": """Let's create comprehensive test scenarios:
+                "guidance": f"""Let's create comprehensive test scenarios for your challenge:{challenge_context}
 
-1. **Basic Cases**: Simple, expected inputs
-2. **Edge Cases**: Empty inputs, single elements, boundaries  
+🧪 **Testing Strategy:**
+
+1. **Basic Cases**: Start with the given examples
+   {f"- Try working through: {self.selected_challenge['examples'][0]['input']}" if self.selected_challenge and 'examples' in self.selected_challenge else ""}
+
+2. **Edge Cases**: What boundary conditions exist?
+   - Empty inputs, single elements
+   - Minimum/maximum values
+   - Zero, negative numbers?
+
 3. **Corner Cases**: Unusual but valid scenarios
-4. **Invalid Cases**: How should your solution handle bad input?
+   - What tricky inputs might break your solution?
 
-What test cases can you think of for your problem?"""
+4. **Invalid Cases**: How should your solution handle bad input?
+   - Null inputs, wrong data types
+
+💡 **Your Task**: Design test cases that thoroughly validate your solution!"""
             },
             "code": {
                 "title": "Phase 4: Structure Your Code",
-                "guidance": """Time to organize your implementation:
+                "guidance": f"""Time to organize your implementation for:{challenge_context}
+
+👩‍💻 **Implementation Planning:**
 
 1. **Function Signature**: Define your main function
-2. **Algorithm Steps**: Break down your chosen approach
-3. **Helper Functions**: What utilities do you need?
-4. **Implementation Plan**: Step-by-step coding strategy
+   - What parameters does it need?
+   - What should it return?
 
-Remember: I'll guide your thinking, not write the code for you!"""
+2. **Algorithm Steps**: Break down your chosen approach
+   - List the main steps in order
+   - Identify the core logic
+
+3. **Helper Functions**: What utilities do you need?
+   - Validation, data processing, etc.
+
+4. **Implementation Plan**: Step-by-step coding approach
+   - Which part will you implement first?
+   - How will you test as you go?
+
+💡 **Remember**: I'll guide your thinking and help you structure your approach, but you'll write the actual code!"""
             }
         }
         
@@ -669,8 +880,18 @@ def create_gradio_interface():
                     value="easy",
                     label="Difficulty Level"
                 )
-                get_challenges_btn = gr.Button("🎯 Get New Challenge", variant="primary")
-                challenges_display = gr.Markdown("Click 'Get New Challenge' to start!")
+                get_challenges_btn = gr.Button("🎯 Get New Challenges", variant="primary")
+                challenges_display = gr.Markdown("Click 'Get New Challenges' to start!")
+                
+                # Challenge Selection
+                gr.Markdown("### 🎯 Select Your Challenge")
+                challenge_selector = gr.Radio(
+                    choices=[],
+                    label="Choose a challenge to work on:",
+                    visible=False
+                )
+                select_challenge_btn = gr.Button("📝 Select This Challenge", visible=False)
+                challenge_status = gr.Markdown("")
                 
                 # Skills Recommendations  
                 gr.Markdown("### 🛠️ Skills to Practice")
@@ -741,11 +962,23 @@ def create_gradio_interface():
         async def fetch_challenges(difficulty):
             try:
                 if not difficulty:
-                    return "❌ Please select a difficulty level first."
-                return await professor.get_challenges(difficulty)
+                    return "❌ Please select a difficulty level first.", gr.update(visible=False), gr.update(visible=False), gr.update(value="")
+                    
+                display_text, challenges = await professor.get_challenges(difficulty)
+                
+                # Create radio button choices
+                radio_choices = [f"{i}. {challenge['name']}" for i, challenge in enumerate(challenges, 1)]
+                
+                return (
+                    display_text,
+                    gr.update(choices=radio_choices, visible=True, value=None),
+                    gr.update(visible=True),
+                    gr.update(value="")
+                )
             except Exception as e:
                 print(f"Error in fetch_challenges: {e}")
-                return f"❌ Unexpected error: {str(e)}\n\n" + professor._get_fallback_challenges()
+                fallback_text = professor._get_fallback_challenges()
+                return fallback_text, gr.update(visible=False), gr.update(visible=False), gr.update(value="")
         
         async def fetch_skills(category):
             try:
@@ -756,8 +989,23 @@ def create_gradio_interface():
                 print(f"Error in fetch_skills: {e}")
                 return f"❌ Unexpected error: {str(e)}\n\n" + professor._get_fallback_skills(category)
         
+        def select_challenge_handler(selected_challenge):
+            try:
+                if not selected_challenge:
+                    return "❌ Please select a challenge first."
+                
+                # Extract challenge number from selection (e.g., "1. Two Sum Problem" -> 1)
+                challenge_num = int(selected_challenge.split('.')[0])
+                return professor.select_challenge(challenge_num)
+            except Exception as e:
+                print(f"Error in select_challenge_handler: {e}")
+                return f"❌ Error selecting challenge: {str(e)}"
+
         def guide_phase(phase, user_input):
             try:
+                if not professor.selected_challenge:
+                    return "❌ Please select a challenge first before working on the Algorithm Design Canvas.", phase
+                    
                 if not user_input or not user_input.strip():
                     return f"Please provide some input for the {phase} phase to get guidance.", phase
                     
@@ -773,10 +1021,19 @@ def create_gradio_interface():
         get_challenges_btn.click(
             fn=fetch_challenges,
             inputs=[difficulty_select],
-            outputs=[challenges_display],
+            outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status],
             show_progress="full",
             scroll_to_output=True,
             show_api=False  # Hide API details from users
+        )
+        
+        select_challenge_btn.click(
+            fn=select_challenge_handler,
+            inputs=[challenge_selector],
+            outputs=[challenge_status],
+            show_progress="minimal",
+            scroll_to_output=True,
+            show_api=False
         )
         
         get_skills_btn.click(
