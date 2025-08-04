@@ -19,25 +19,82 @@ import time
 import aiohttp
 import json
 
-# Configuration - Updated for Topcoder MCP (no auth required)
+# Configuration - Topcoder MCP (auth IS required despite docs)
 MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"
 MCP_HTTP_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/mcp"
+MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
 
 print("🎓 Professor Al Gorithm starting...")
-print(f"🔗 MCP SSE endpoint: {MCP_SSE_ENDPOINT}")
 print(f"🔗 MCP HTTP endpoint: {MCP_HTTP_ENDPOINT}")
-print("📚 No authentication required for Topcoder MCP")
-print("🔄 Trying HTTP endpoint first...")
+if MCP_SESSION_TOKEN:
+    print(f"🔑 Session token: ***{MCP_SESSION_TOKEN[-10:]}")
+    print("✅ MCP authentication configured")
+else:
+    print("❌ No MCP_SESSION_TOKEN found - will use fallback content")
 
 class MCPClient:
     """Python MCP client for Topcoder integration"""
     
-    def __init__(self, endpoint: str):
+    def __init__(self, endpoint: str, session_token: str):
         self.endpoint = endpoint
+        self.session_token = session_token
+        self.session_id = None
     
+    async def _initialize_session(self) -> bool:
+        """Initialize MCP session"""
+        if self.session_id or not self.session_token:
+            return self.session_id is not None
+            
+        try:
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-MCP-Session': self.session_token
+            }
+            
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {}
+                },
+                "id": "init_1"
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        text = await response.text()
+                        try:
+                            result = json.loads(text)
+                            if 'result' in result:
+                                print("✅ MCP session initialized")
+                                self.session_id = self.session_token  # Use token as session ID
+                                return True
+                        except:
+                            pass
+                    print(f"❌ Session init failed with status {response.status}")
+                    return False
+        except Exception as e:
+            print(f"❌ Session init error: {e}")
+            return False
+
     async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make MCP request using JSON-RPC 2.0"""
+        # Initialize session if needed
+        if not await self._initialize_session():
+            print("❌ Failed to initialize MCP session")
+            return None
+            
         try:
+            headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-MCP-Session': self.session_token
+            }
+            
             payload = {
                 "jsonrpc": "2.0",
                 "method": "tools/call",
@@ -50,50 +107,37 @@ class MCPClient:
             
             timeout = aiohttp.ClientTimeout(total=30)
             
-            # Try different approaches based on endpoint
-            if "sse" in self.endpoint:
-                # For SSE endpoint, try GET first
-                print("🔄 Trying SSE endpoint with GET...")
-                headers = {'Accept': 'text/event-stream'}
-                async with aiohttp.ClientSession(timeout=timeout) as session:
-                    params = {"tools": tool_name, **arguments}
-                    async with session.get(self.endpoint, params=params, headers=headers) as response:
-                        if response.status == 200:
-                            text = await response.text()
-                            return self._parse_sse_response(text)
-                        else:
-                            print(f"SSE GET failed with status {response.status}")
-            
-            # For HTTP endpoint or if SSE failed, try POST
-            print(f"🔄 Trying POST to {self.endpoint}...")
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-            
+            print(f"🔄 Making MCP request to {self.endpoint}...")
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(self.endpoint, json=payload, headers=headers) as response:
                     if response.status == 200:
                         text = await response.text()
-                        # Try parsing as JSON first, then SSE
                         try:
-                            return json.loads(text)
-                        except:
+                            result = json.loads(text)
+                            if 'result' in result:
+                                return result['result']
+                            elif 'error' in result:
+                                print(f"❌ MCP error: {result['error']}")
+                                return None
+                            return result
+                        except json.JSONDecodeError:
+                            # Try SSE parsing as fallback
                             return self._parse_sse_response(text)
-                    elif response.status == 404:
-                        print(f"MCP endpoint not found (404) - endpoint may be incorrect")
-                        return None
-                    elif response.status == 503:
-                        print(f"MCP server unavailable (503) - service may be down or overloaded")
+                    elif response.status == 400:
+                        response_text = await response.text()
+                        print(f"❌ Bad request (400): {response_text[:200]}...")
                         return None
                     elif response.status == 401:
-                        print(f"MCP authentication failed (401)")
+                        print(f"❌ Authentication failed (401) - check session token")
                         return None
-                    elif response.status == 429:
-                        print(f"MCP rate limited (429) - too many requests")
+                    elif response.status == 404:
+                        print(f"❌ Endpoint not found (404) - endpoint may be incorrect")
+                        return None
+                    elif response.status == 503:
+                        print(f"❌ Server unavailable (503) - service may be down")
                         return None
                     else:
-                        print(f"MCP request failed with status {response.status}")
+                        print(f"❌ Request failed with status {response.status}")
                         response_text = await response.text()
                         print(f"Response body: {response_text[:200]}...")
                         return None
@@ -149,9 +193,13 @@ class MCPClient:
             "limit": limit
         })
 
-# Initialize MCP client - no auth required for Topcoder
-# Try HTTP endpoint first since SSE gave 404
-mcp_client = MCPClient(MCP_HTTP_ENDPOINT)
+# Initialize MCP client - auth required for Topcoder
+mcp_client = None
+if MCP_SESSION_TOKEN:
+    mcp_client = MCPClient(MCP_HTTP_ENDPOINT, MCP_SESSION_TOKEN)
+    print("🔑 MCP client initialized with session token")
+else:
+    print("⚠️ No session token - MCP integration disabled")
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
