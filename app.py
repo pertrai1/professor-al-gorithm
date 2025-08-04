@@ -19,37 +19,26 @@ import time
 import aiohttp
 import json
 
-# Configuration
-MCP_ENDPOINT = os.getenv("MCP_ENDPOINT")
-MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
+# Configuration - Updated for Topcoder MCP (no auth required)
+MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"
+MCP_HTTP_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/mcp"
 
 print("🎓 Professor Al Gorithm starting...")
-print(f"🔍 Debug - MCP_ENDPOINT: {MCP_ENDPOINT[:50] if MCP_ENDPOINT else 'None'}...")
-print(f"🔍 Debug - MCP_SESSION_TOKEN: {'***' + MCP_SESSION_TOKEN[-10:] if MCP_SESSION_TOKEN else 'None'}")
-
-if MCP_ENDPOINT and MCP_SESSION_TOKEN:
-    print(f"🔗 MCP integration enabled: {MCP_ENDPOINT}")
-else:
-    print("📚 Running in offline mode - using educational content only")
+print(f"🔗 MCP integration enabled: {MCP_SSE_ENDPOINT}")
+print("📚 No authentication required for Topcoder MCP")
 
 class MCPClient:
     """Python MCP client for Topcoder integration"""
     
-    def __init__(self, endpoint: str, session_token: str):
+    def __init__(self, endpoint: str):
         self.endpoint = endpoint
-        self.session_token = session_token
-        self.session_initialized = False
     
     async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make MCP request using JSON-RPC 2.0 over Server-Sent Events"""
-        if not self.endpoint or not self.session_token:
-            return None
-            
         try:
             headers = {
                 'Content-Type': 'application/json',
-                'X-MCP-Session': self.session_token,
-                'Accept': 'text/plain'
+                'Accept': 'text/event-stream'  # For SSE
             }
             
             payload = {
@@ -135,10 +124,8 @@ class MCPClient:
             "limit": limit
         })
 
-# Initialize MCP client
-mcp_client = None
-if MCP_ENDPOINT and MCP_SESSION_TOKEN:
-    mcp_client = MCPClient(MCP_ENDPOINT, MCP_SESSION_TOKEN)
+# Initialize MCP client - no auth required for Topcoder
+mcp_client = MCPClient(MCP_SSE_ENDPOINT)
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
