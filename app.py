@@ -55,7 +55,34 @@ class MCPClient:
             
             # Try different initialization approaches
             payloads_to_try = [
-                # Standard MCP initialization
+                # Try creating/starting a session first
+                {
+                    "jsonrpc": "2.0",
+                    "method": "session/create",
+                    "params": {
+                        "token": self.session_token
+                    },
+                    "id": "session_1"
+                },
+                # Try session start
+                {
+                    "jsonrpc": "2.0",
+                    "method": "session/start",
+                    "params": {
+                        "sessionToken": self.session_token
+                    },
+                    "id": "session_2"
+                },
+                # Try connecting first
+                {
+                    "jsonrpc": "2.0",
+                    "method": "connect",
+                    "params": {
+                        "sessionId": self.session_token
+                    },
+                    "id": "connect_1"
+                },
+                # Standard MCP initialization without sessionId in params
                 {
                     "jsonrpc": "2.0",
                     "method": "initialize",
@@ -63,28 +90,16 @@ class MCPClient:
                         "protocolVersion": "2024-11-05",
                         "capabilities": {
                             "tools": {}
-                        },
-                        "sessionId": self.session_token
+                        }
                     },
                     "id": "init_1"
                 },
-                # Simplified initialization  
+                # Simplified initialization without sessionId in params 
                 {
                     "jsonrpc": "2.0",
                     "method": "initialize",
-                    "params": {
-                        "sessionId": self.session_token
-                    },
+                    "params": {},
                     "id": "init_2"
-                },
-                # Just list available tools
-                {
-                    "jsonrpc": "2.0",
-                    "method": "tools/list",
-                    "params": {
-                        "sessionId": self.session_token
-                    },
-                    "id": "tools_1"
                 }
             ]
             
