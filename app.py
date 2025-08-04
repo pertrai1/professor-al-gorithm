@@ -53,42 +53,76 @@ class MCPClient:
                 'X-MCP-Session': self.session_token
             }
             
-            payload = {
-                "jsonrpc": "2.0",
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {}
-                    }
+            # Try different initialization approaches
+            payloads_to_try = [
+                # Standard MCP initialization
+                {
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2024-11-05",
+                        "capabilities": {
+                            "tools": {}
+                        },
+                        "sessionId": self.session_token
+                    },
+                    "id": "init_1"
                 },
-                "id": "init_1"
-            }
+                # Simplified initialization  
+                {
+                    "jsonrpc": "2.0",
+                    "method": "initialize",
+                    "params": {
+                        "sessionId": self.session_token
+                    },
+                    "id": "init_2"
+                },
+                # Just list available tools
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/list",
+                    "params": {
+                        "sessionId": self.session_token
+                    },
+                    "id": "tools_1"
+                }
+            ]
             
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                    response_text = await response.text()
-                    print(f"🔍 Init response ({response.status}): {response_text[:200]}...")
+                # Try different initialization approaches
+                for i, payload in enumerate(payloads_to_try, 1):
+                    print(f"🔄 Trying initialization approach {i}: {payload['method']}")
                     
-                    if response.status == 200:
-                        try:
-                            result = json.loads(response_text)
-                            if 'result' in result:
-                                print("✅ MCP session initialized")
-                                self.session_id = self.session_token  # Use token as session ID
-                                return True
-                        except json.JSONDecodeError as e:
-                            print(f"❌ Failed to parse init response: {e}")
-                    elif response.status == 406:
-                        print("❌ Server doesn't accept our initialize request format")
-                        # Try without initialization - maybe it's not needed
-                        print("🔄 Skipping initialization, trying direct tool call...")
-                        self.session_id = self.session_token
-                        return True
-                    else:
-                        print(f"❌ Session init failed with status {response.status}")
-                    return False
+                    async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                        response_text = await response.text()
+                        print(f"🔍 Init response ({response.status}): {response_text[:200]}...")
+                        
+                        if response.status == 200:
+                            try:
+                                result = json.loads(response_text)
+                                if 'result' in result:
+                                    print(f"✅ MCP session initialized with approach {i}")
+                                    self.session_id = self.session_token
+                                    return True
+                                elif 'error' not in result:
+                                    # Sometimes a successful response doesn't have 'result'
+                                    print(f"✅ MCP session initialized with approach {i} (no explicit result)")
+                                    self.session_id = self.session_token
+                                    return True
+                            except json.JSONDecodeError as e:
+                                print(f"❌ Failed to parse init response: {e}")
+                        elif response.status == 406:
+                            print("❌ Server doesn't accept this request format")
+                            continue  # Try next approach
+                        else:
+                            print(f"❌ Approach {i} failed with status {response.status}")
+                            continue  # Try next approach
+                
+                # If all initialization attempts failed, try without initialization
+                print("🔄 All initialization attempts failed, trying direct tool call...")
+                self.session_id = self.session_token
+                return True
         except Exception as e:
             print(f"❌ Session init error: {e}")
             return False
