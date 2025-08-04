@@ -49,7 +49,7 @@ class MCPClient:
         try:
             headers = {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
+                'Accept': 'application/json, text/event-stream',
                 'X-MCP-Session': self.session_token
             }
             
@@ -103,7 +103,7 @@ class MCPClient:
         try:
             headers = {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json',
+                'Accept': 'application/json, text/event-stream',
                 'X-MCP-Session': self.session_token
             }
             
@@ -112,7 +112,8 @@ class MCPClient:
                 "method": "tools/call",
                 "params": {
                     "name": tool_name,
-                    "arguments": arguments
+                    "arguments": arguments,
+                    "sessionId": self.session_token  # Add session ID to params
                 },
                 "id": f"req_{int(time.time() * 1000)}"
             }
