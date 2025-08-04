@@ -45,6 +45,7 @@ class MCPClient:
         if self.session_id or not self.session_token:
             return self.session_id is not None
             
+        print("🔄 Initializing MCP session...")
         try:
             headers = {
                 'Content-Type': 'application/json',
@@ -57,7 +58,9 @@ class MCPClient:
                 "method": "initialize",
                 "params": {
                     "protocolVersion": "2024-11-05",
-                    "capabilities": {}
+                    "capabilities": {
+                        "tools": {}
+                    }
                 },
                 "id": "init_1"
             }
@@ -65,17 +68,26 @@ class MCPClient:
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                    response_text = await response.text()
+                    print(f"🔍 Init response ({response.status}): {response_text[:200]}...")
+                    
                     if response.status == 200:
-                        text = await response.text()
                         try:
-                            result = json.loads(text)
+                            result = json.loads(response_text)
                             if 'result' in result:
                                 print("✅ MCP session initialized")
                                 self.session_id = self.session_token  # Use token as session ID
                                 return True
-                        except:
-                            pass
-                    print(f"❌ Session init failed with status {response.status}")
+                        except json.JSONDecodeError as e:
+                            print(f"❌ Failed to parse init response: {e}")
+                    elif response.status == 406:
+                        print("❌ Server doesn't accept our initialize request format")
+                        # Try without initialization - maybe it's not needed
+                        print("🔄 Skipping initialization, trying direct tool call...")
+                        self.session_id = self.session_token
+                        return True
+                    else:
+                        print(f"❌ Session init failed with status {response.status}")
                     return False
         except Exception as e:
             print(f"❌ Session init error: {e}")
