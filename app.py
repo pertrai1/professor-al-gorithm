@@ -21,46 +21,135 @@ try:
 except:
     pass  # Ignore if .env file doesn't exist (normal in Hugging Face Spaces)
 
-# Configuration - Topcoder MCP (NO authentication required per official docs)
-MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"
+# Configuration - Topcoder MCP (Authentication required despite docs claiming otherwise)
 MCP_HTTP_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/mcp"
-
-# Try different endpoint configurations
-MCP_ENDPOINTS_TO_TRY = [
-    "https://api.topcoder-dev.com/v6/mcp/mcp",  # Streamable HTTP
-    "https://api.topcoder-dev.com/v6/mcp/sse",  # Server-Sent Events
-    "https://api.topcoder-dev.com/v6/mcp",      # Base endpoint
-]
+MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
 
 print("🎓 Professor Al Gorithm starting...")
 print(f"🔗 MCP HTTP endpoint: {MCP_HTTP_ENDPOINT}")
-print("🔓 MCP server requires no authentication (public access)")
-print("✅ MCP integration configured for public access")
+if MCP_SESSION_TOKEN:
+    print(f"🔑 Session token: ***{MCP_SESSION_TOKEN[-10:]}")
+    print("✅ MCP authentication configured")
+else:
+    print("❌ No MCP_SESSION_TOKEN found - will use fallback content")
 
 class MCPClient:
-    """Python MCP client for Topcoder integration - No authentication required"""
+    """Simple MCP client for Topcoder integration"""
     
-    def __init__(self, endpoint: str):
+    def __init__(self, endpoint: str, session_token: str):
         self.endpoint = endpoint
-        self.session_id = None
+        self.session_token = session_token
     
-    async def _establish_connection(self) -> bool:
-        """Establish MCP connection to public server (no authentication required)"""
-        print("🔄 Establishing MCP connection to public server...")
-        
+    async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make a simple MCP request with session authentication"""
         try:
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/event-stream',
+                'X-MCP-Session': self.session_token,
             }
             
-            # Try connection establishment methods (no auth required)
-            connection_methods = [
-                # Method 1: Standard MCP handshake
-                {
-                    "jsonrpc": "2.0",
-                    "method": "initialize",
-                    "params": {
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": arguments,
+                },
+                "id": f"req_{int(time.time() * 1000)}"
+            }
+            
+            timeout = aiohttp.ClientTimeout(total=30)
+            
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        text = await response.text()
+                        try:
+                            result = json.loads(text)
+                            if 'result' in result:
+                                return result['result']
+                            elif 'error' in result:
+                                print(f"❌ MCP error: {result['error']}")
+                                return None
+                            return result
+                        except json.JSONDecodeError:
+                            # Try SSE parsing as fallback
+                            return self._parse_sse_response(text)
+                    else:
+                        response_text = await response.text()
+                        print(f"❌ Request failed ({response.status}): {response_text[:200]}...")
+                        return None
+                        
+        except Exception as e:
+            print(f"❌ MCP request error: {e}")
+            return None
+    
+    def _parse_sse_response(self, sse_text: str) -> Optional[Dict[str, Any]]:
+        """Parse Server-Sent Events response and extract JSON data"""
+        try:
+            lines = sse_text.strip().split('\n')
+            for line in lines:
+                if line.startswith('data: '):
+                    data_str = line[6:]  # Remove 'data: ' prefix
+                    try:
+                        # Parse the JSON (might be double-encoded)
+                        data = json.loads(data_str)
+                        if isinstance(data, dict) and 'result' in data:
+                            result = data['result']
+                            if isinstance(result, dict) and 'content' in result:
+                                content = result['content']
+                                if isinstance(content, list) and len(content) > 0:
+                                    # Extract the actual data from MCP response
+                                    first_content = content[0]
+                                    if isinstance(first_content, dict) and 'text' in first_content:
+                                        # Sometimes the text is double-encoded JSON
+                                        text_content = first_content['text']
+                                        try:
+                                            return json.loads(text_content)
+                                        except:
+                                            return {'raw_text': text_content}
+                            return result
+                        return data
+                    except json.JSONDecodeError:
+                        continue
+            return None
+        except Exception as e:
+            print(f"SSE parsing error: {e}")
+            return None
+    
+    async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
+        """Get challenges from Topcoder MCP"""
+        return await self._make_mcp_request("query-tc-challenges", {
+            "difficulty": difficulty,
+            "limit": limit
+        })
+    
+    async def get_skills(self, category: str = "algorithms", limit: int = 10) -> Optional[Dict[str, Any]]:
+        """Get skills from Topcoder MCP"""
+        return await self._make_mcp_request("query-tc-skills", {
+            "category": category,
+            "limit": limit
+        })
+
+# Initialize MCP client - authentication required
+mcp_client = None
+if MCP_SESSION_TOKEN:
+    mcp_client = MCPClient(MCP_HTTP_ENDPOINT, MCP_SESSION_TOKEN)
+    print("🔑 MCP client initialized with session token")
+else:
+    print("⚠️ No session token - MCP integration disabled")
+
+class ProfessorAlGorithm:
+    """Main class for the Professor Al Gorithm AI agent interface"""
+    
+    def __init__(self):
+        self.current_phase = "constraints"
+        self.session_data = {}
+        self.selected_challenge = None
+        self.available_challenges = []
+    
+    async def get_challenges(self, difficulty: str = "easy") -> Tuple[str, list]:
                         "protocolVersion": "2024-11-05",
                         "capabilities": {
                             "tools": {}
