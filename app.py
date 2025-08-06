@@ -20,8 +20,12 @@ import aiohttp
 import json
 from dotenv import load_dotenv
 
-# Load environment variables from backend/.env file
-load_dotenv('backend/.env')
+# Load environment variables from .env file if it exists (for local development)
+# In Hugging Face Spaces, environment variables are automatically available
+try:
+    load_dotenv('.env')
+except:
+    pass  # Ignore if .env file doesn't exist (normal in Hugging Face Spaces)
 
 # Configuration - Topcoder MCP (auth IS required despite docs)
 MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"
@@ -1093,8 +1097,10 @@ if __name__ == "__main__":
     app = create_gradio_interface()
     
     # Launch configuration for Hugging Face Spaces
+    # Allow port to be overridden by environment variable
+    port = int(os.getenv("GRADIO_SERVER_PORT", 7860))
     app.launch(
         server_name="0.0.0.0",
-        server_port=7860,
+        server_port=port,
         debug=False
     )

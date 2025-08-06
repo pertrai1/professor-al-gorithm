@@ -20,9 +20,7 @@ ENV GRADIO_SERVER_PORT=7860
 # Expose the port for Gradio
 EXPOSE 7860
 
-# Health check for container readiness
-HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:7860/ || exit 1
+# Health check removed - not needed for Hugging Face Spaces
 
 # Start Gradio app directly
 CMD ["python", "app.py"]
