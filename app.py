@@ -21,39 +21,40 @@ try:
 except:
     pass  # Ignore if .env file doesn't exist (normal in Hugging Face Spaces)
 
-# Configuration - Topcoder MCP (auth IS required despite docs)
+# Configuration - Topcoder MCP (NO authentication required per official docs)
 MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"
 MCP_HTTP_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/mcp"
-MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
+
+# Try different endpoint configurations
+MCP_ENDPOINTS_TO_TRY = [
+    "https://api.topcoder-dev.com/v6/mcp/mcp",  # Streamable HTTP
+    "https://api.topcoder-dev.com/v6/mcp/sse",  # Server-Sent Events
+    "https://api.topcoder-dev.com/v6/mcp",      # Base endpoint
+]
 
 print("🎓 Professor Al Gorithm starting...")
 print(f"🔗 MCP HTTP endpoint: {MCP_HTTP_ENDPOINT}")
-if MCP_SESSION_TOKEN:
-    print(f"🔑 Session token: ***{MCP_SESSION_TOKEN[-10:]}")
-    print("✅ MCP authentication configured")
-else:
-    print("❌ No MCP_SESSION_TOKEN found - will use fallback content")
+print("🔓 MCP server requires no authentication (public access)")
+print("✅ MCP integration configured for public access")
 
 class MCPClient:
-    """Python MCP client for Topcoder integration"""
+    """Python MCP client for Topcoder integration - No authentication required"""
     
-    def __init__(self, endpoint: str, session_token: str):
+    def __init__(self, endpoint: str):
         self.endpoint = endpoint
-        self.session_token = session_token
         self.session_id = None
     
     async def _establish_connection(self) -> bool:
-        """Establish persistent MCP connection as suggested by Topcoder judge"""
-        print("🔄 Establishing MCP connection (as suggested by Topcoder judge)...")
+        """Establish MCP connection to public server (no authentication required)"""
+        print("🔄 Establishing MCP connection to public server...")
         
         try:
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/event-stream',
-                'X-MCP-Session': self.session_token
             }
             
-            # Try connection establishment methods
+            # Try connection establishment methods (no auth required)
             connection_methods = [
                 # Method 1: Standard MCP handshake
                 {
@@ -74,13 +75,11 @@ class MCPClient:
                     "params": {},
                     "id": "connect_simple"
                 },
-                # Method 3: Session handshake
+                # Method 3: Public handshake
                 {
                     "jsonrpc": "2.0",
                     "method": "handshake", 
-                    "params": {
-                        "sessionToken": self.session_token
-                    },
+                    "params": {},
                     "id": "connect_handshake"
                 }
             ]
@@ -99,7 +98,7 @@ class MCPClient:
                                 result = json.loads(response_text)
                                 if 'result' in result or 'error' not in result:
                                     print(f"✅ MCP connection established with method {i}")
-                                    self.session_id = self.session_token
+                                    self.session_id = "public"  # Mark as connected
                                     return True
                             except json.JSONDecodeError:
                                 pass
@@ -115,29 +114,29 @@ class MCPClient:
             return False
     
     async def _refresh_session(self, session, headers) -> bool:
-        """Try to refresh/re-establish the session"""
-        print("🔄 Attempting session refresh...")
+        """Try to refresh/re-establish the connection (no auth required)"""
+        print("🔄 Attempting connection refresh...")
         
         refresh_methods = [
-            # Try to reconnect/refresh
-            {
-                "jsonrpc": "2.0",
-                "method": "session/refresh",
-                "params": {"token": self.session_token},
-                "id": "refresh_1"
-            },
             # Try to ping/keepalive
             {
                 "jsonrpc": "2.0", 
                 "method": "ping",
                 "params": {},
-                "id": "refresh_2"
+                "id": "refresh_1"
             },
-            # Try session validation
+            # Try connection status
             {
                 "jsonrpc": "2.0",
-                "method": "session/validate", 
-                "params": {"sessionId": self.session_token},
+                "method": "status", 
+                "params": {},
+                "id": "refresh_2"
+            },
+            # Try list available tools
+            {
+                "jsonrpc": "2.0",
+                "method": "tools/list",
+                "params": {},
                 "id": "refresh_3"
             }
         ]
@@ -153,23 +152,37 @@ class MCPClient:
                     try:
                         result = json.loads(response_text)
                         if 'result' in result:
-                            print(f"✅ Session refreshed with method {i}")
-                            self.session_id = self.session_token
+                            print(f"✅ Connection refreshed with method {i}")
+                            self.session_id = "public"
                             return True
                     except json.JSONDecodeError:
                         pass
         
         # Last resort - assume connection is working and proceed
         print("🤷 All connection attempts had issues, but proceeding anyway...")
-        self.session_id = self.session_token
+        self.session_id = "public"
         return True
 
     async def _initialize_session(self) -> bool:
-        """Initialize MCP session with connection establishment"""
-        if self.session_id or not self.session_token:
-            return self.session_id is not None
+        """Initialize MCP connection (no authentication required)"""
+        if self.session_id:
+            return True
             
         return await self._establish_connection()
+
+    async def _try_different_endpoints(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Try the MCP request with different endpoints"""
+        for endpoint in MCP_ENDPOINTS_TO_TRY:
+            print(f"🔄 Trying endpoint: {endpoint}")
+            original_endpoint = self.endpoint
+            self.endpoint = endpoint
+            result = await self._make_single_mcp_request(tool_name, arguments)
+            self.endpoint = original_endpoint
+            if result:
+                print(f"✅ Success with endpoint: {endpoint}")
+                return result
+            print(f"❌ Failed with endpoint: {endpoint}")
+        return None
 
     async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Make MCP request using JSON-RPC 2.0"""
@@ -178,60 +191,89 @@ class MCPClient:
             print("❌ Failed to initialize MCP session")
             return None
             
+        # First try the default endpoint
+        result = await self._make_single_mcp_request(tool_name, arguments)
+        if result:
+            return result
+            
+        # If that fails, try different endpoints
+        print("🔄 Default endpoint failed, trying alternatives...")
+        return await self._try_different_endpoints(tool_name, arguments)
+
+    async def _make_single_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make a single MCP request to the current endpoint"""
+            
         try:
             headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/event-stream',
-                'X-MCP-Session': self.session_token
             }
             
-            payload = {
-                "jsonrpc": "2.0",
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments,
-                    "sessionId": self.session_token  # Add session ID to params
+            # Try different payload formats (no authentication required)
+            payloads_to_try = [
+                # Format 1: Standard tools/call format
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    "params": {
+                        "name": tool_name,
+                        "arguments": arguments,
+                    },
+                    "id": f"req_{int(time.time() * 1000)}"
                 },
-                "id": f"req_{int(time.time() * 1000)}"
-            }
+                # Format 2: Direct tool call
+                {
+                    "jsonrpc": "2.0",
+                    "method": tool_name,
+                    "params": arguments,
+                    "id": f"req_{int(time.time() * 1000)}"
+                },
+                # Format 3: Tool call with arguments as top-level
+                {
+                    "jsonrpc": "2.0",
+                    "method": "tools/call",
+                    **arguments,
+                    "tool": tool_name,
+                    "id": f"req_{int(time.time() * 1000)}"
+                }
+            ]
+            
+            print(f"🔍 Debug - Request headers: {list(headers.keys())}")
+            print(f"🔍 Debug - Using public MCP server (no authentication)")
             
             timeout = aiohttp.ClientTimeout(total=30)
             
-            print(f"🔄 Making MCP request to {self.endpoint}...")
+            # Try each payload format until one works
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                    if response.status == 200:
-                        text = await response.text()
-                        try:
-                            result = json.loads(text)
-                            if 'result' in result:
-                                return result['result']
-                            elif 'error' in result:
-                                print(f"❌ MCP error: {result['error']}")
-                                return None
-                            return result
-                        except json.JSONDecodeError:
-                            # Try SSE parsing as fallback
-                            return self._parse_sse_response(text)
-                    elif response.status == 400:
-                        response_text = await response.text()
-                        print(f"❌ Bad request (400): {response_text[:200]}...")
-                        return None
-                    elif response.status == 401:
-                        print(f"❌ Authentication failed (401) - check session token")
-                        return None
-                    elif response.status == 404:
-                        print(f"❌ Endpoint not found (404) - endpoint may be incorrect")
-                        return None
-                    elif response.status == 503:
-                        print(f"❌ Server unavailable (503) - service may be down")
-                        return None
-                    else:
-                        print(f"❌ Request failed with status {response.status}")
-                        response_text = await response.text()
-                        print(f"Response body: {response_text[:200]}...")
-                        return None
+                for i, payload in enumerate(payloads_to_try, 1):
+                    print(f"🔍 Trying payload format {i}: {payload.get('method', 'unknown')}")
+                    
+                    async with session.post(self.endpoint, json=payload, headers=headers) as response:
+                        if response.status == 200:
+                            text = await response.text()
+                            try:
+                                result = json.loads(text)
+                                if 'result' in result:
+                                    print(f"✅ Success with payload format {i}")
+                                    return result['result']
+                                elif 'error' in result:
+                                    print(f"❌ MCP error (format {i}): {result['error']}")
+                                    continue  # Try next format
+                                return result
+                            except json.JSONDecodeError:
+                                # Try SSE parsing as fallback
+                                parsed = self._parse_sse_response(text)
+                                if parsed:
+                                    print(f"✅ Success with SSE parsing (format {i})")
+                                    return parsed
+                                continue  # Try next format
+                        else:
+                            response_text = await response.text()
+                            print(f"❌ Format {i} failed ({response.status}): {response_text[:100]}...")
+                            continue  # Try next format
+                
+                # If we get here, all formats failed
+                return None
                         
         except Exception as e:
             print(f"MCP request error: {e}")
@@ -284,13 +326,9 @@ class MCPClient:
             "limit": limit
         })
 
-# Initialize MCP client - auth required for Topcoder
-mcp_client = None
-if MCP_SESSION_TOKEN:
-    mcp_client = MCPClient(MCP_HTTP_ENDPOINT, MCP_SESSION_TOKEN)
-    print("🔑 MCP client initialized with session token")
-else:
-    print("⚠️ No session token - MCP integration disabled")
+# Initialize MCP client - no authentication required
+mcp_client = MCPClient(MCP_HTTP_ENDPOINT)
+print("🔓 MCP client initialized for public access")
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
