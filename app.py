@@ -18,6 +18,10 @@ import asyncio
 import time
 import aiohttp
 import json
+from dotenv import load_dotenv
+
+# Load environment variables from backend/.env file
+load_dotenv('backend/.env')
 
 # Configuration - Topcoder MCP (auth IS required despite docs)
 MCP_SSE_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/sse"

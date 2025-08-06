@@ -214,53 +214,25 @@ If the steps were skipped, provide a **wrap-up prompt** to reflect on what was l
 
 ## System Architecture
 
-### Full-Stack Implementation
+### Python-Based Implementation
 
-#### Frontend (Gradio Web Interface)
+#### Gradio Web Application
 
 - **Interactive Canvas Interface**: 4-phase tabbed interface guiding users through Algorithm Design Canvas
-- **Real-time Challenge Integration**: Fetches live coding challenges from Topcoder via MCP
+- **Direct MCP Integration**: Built-in Python MCP client connecting directly to Topcoder MCP server
 - **Educational Guidance System**: Socratic questioning approach with phase-specific guidance
 - **Responsive Design**: Clean, accessible interface optimized for learning
-- **Async Operations**: Non-blocking API calls with loading indicators and error handling
-
-#### Backend Services
-
-- **Express.js API Server**: RESTful endpoints for frontend communication with CORS support
-- **MCP Integration**: Connects to Topcoder MCP server for real challenges and skills data
-- **Educational Logic**: Algorithm Design Canvas methodology implementation with phase validation
+- **Async Operations**: Non-blocking MCP calls with loading indicators and error handling
 - **Session Management**: Handles MCP authentication and conversation state tracking
 
-### API Endpoints
+### Application Interface
 
-#### Core Endpoints
+The application runs as a single Gradio web interface with:
 
-- `GET /` - Health check and API info
-- `POST /api/chat` - Main conversation interface
-- `GET /api/challenges` - Fetch Topcoder challenges
-- `GET /api/skills` - Fetch available skills
-- `POST /api/canvas` - Algorithm Design Canvas phases
-
-#### Example Usage
-
-```bash
-# Start a conversation
-curl -X POST http://localhost:3000/api/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "I want to learn about algorithms"}'
-
-# Get challenges
-curl "http://localhost:3000/api/challenges?difficulty=easy&limit=5"
-
-# Submit canvas phase
-curl -X POST http://localhost:3000/api/canvas \
-  -H "Content-Type: application/json" \
-  -d '{
-    "phase": "constraints",
-    "content": "Input: array of integers, Output: sorted array",
-    "challengeId": "sorting-challenge"
-  }'
-```
+- **Challenge Selection**: Interactive dropdowns for difficulty and skill categories
+- **Algorithm Design Canvas**: 4-phase tabbed interface with guided progression
+- **Real-time MCP Integration**: Direct connection to Topcoder MCP server for live data
+- **Educational Guidance**: Socratic questioning with contextual hints and examples
 
 ### MCP Integration Details
 
@@ -279,38 +251,26 @@ This project connects to Topcoder's MCP server using:
 
 **Prerequisites:**
 
-- Node.js 18+ and npm
 - Python 3.9+
 - MCP server credentials
 
 **Quick Start:**
 
 ```bash
-# Backend setup
-cd backend
-npm install
-cp .env.example .env
-# Edit .env with your MCP credentials
-
-# Frontend setup
+# Install dependencies
 pip install -r requirements.txt
 
-# Option 1: Manual startup (recommended for development)
-# Terminal 1 - Start backend
-cd backend && npm run dev
+# Set up environment (create .env file with MCP credentials)
+echo "MCP_SESSION_TOKEN=your-64-character-hex-token" > .env
+echo "MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp" >> .env
 
-# Terminal 2 - Start frontend (after backend is running)
-python app.py
-
-# Option 2: Automated startup
-chmod +x start.sh
-./start.sh
+# Run the application
+python3 app.py
 ```
 
 **Access the Application:**
 
-- Frontend: http://localhost:7860 (Gradio interface)
-- Backend API: http://localhost:3000 (REST endpoints)
+- Web Interface: http://localhost:7860 (Gradio interface)
 
 #### Hugging Face Spaces Deployment (Module 8)
 
@@ -337,199 +297,73 @@ chmod +x start.sh
    Set the following secrets in your Hugging Face Space settings:
 
    ```
-   MCP_ENDPOINT=https://your-topcoder-mcp-server.com
+   MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp
    MCP_SESSION_TOKEN=your-64-character-hex-token
    ```
 
 4. **Automatic Deployment:**
    - Hugging Face Spaces will automatically build and deploy using the Dockerfile
-   - The build process installs both Node.js and Python dependencies
+   - The build process installs Python dependencies and runs the Gradio app
    - No additional configuration needed - runs on CPU Basic hardware
 
-**Multi-Service Container Setup:**
-The application uses a multi-stage Docker build that runs both backend (Node.js) and frontend (Python/Gradio) services:
+**Single-Service Container:**
+The application runs as a standalone Python/Gradio service:
 
 ```bash
 # Local Docker testing (optional)
 docker build -t professor-al-gorithm .
-docker run -p 7860:7860 --env-file backend/.env professor-al-gorithm
+docker run -p 7860:7860 --env-file .env professor-al-gorithm
 
 # The container automatically:
-# 1. Starts the Express.js backend on port 3000
-# 2. Waits for backend readiness (10 second delay)
+# 1. Installs Python dependencies
+# 2. Loads environment variables for MCP authentication
 # 3. Starts the Gradio frontend on port 7860
-# 4. Exposes the frontend interface for users
 ```
 
 **Deployment Validation (Smoke Testing):**
 After deployment, verify the following functionality:
 
-1. **Frontend Access:** Open your Hugging Face Space URL - should show the Professor Al Gorithm interface
-2. **Backend Health:** The interface should load without errors (backend is running)
-3. **MCP Integration:** Try fetching challenges or skills - should return data from Topcoder
-4. **Canvas Functionality:** Navigate through all 4 phases (Constraints → Ideas → Tests → Code)
-5. **Error Handling:** Test with invalid inputs to ensure graceful error messages
+1. **Application Access:** Open your Hugging Face Space URL - should show the Professor Al Gorithm interface
+2. **MCP Integration:** Try fetching challenges or skills - should return data from Topcoder
+3. **Canvas Functionality:** Navigate through all 4 phases (Constraints → Ideas → Tests → Code)
+4. **Error Handling:** Test with invalid inputs to ensure graceful error messages
 
 **Troubleshooting:**
 
 - If the Space fails to build, check the logs in the Hugging Face Spaces interface
 - Ensure MCP credentials are correctly set in Space secrets
-- Verify all dependencies are listed in `requirements.txt` and `backend/package.json`
-- The application requires ~2GB RAM (within CPU Basic limits)
+- Verify all dependencies are listed in `requirements.txt`
+- The application requires ~1GB RAM (within CPU Basic limits)
 
 ### Testing
 
-#### Jest Testing Framework (Module 7)
+The application includes built-in error handling and fallback behavior:
 
-A comprehensive Node.js testing framework using Jest and Supertest with 25+ test scenarios:
-
-```bash
-# Backend testing (from backend directory)
-cd backend
-
-# Install test dependencies
-npm install
-
-# Run all tests
-npm test
-
-# Run only E2E tests
-npm run test:e2e
-
-# Run tests in watch mode (for development)
-npm run test:watch
-
-# Run tests with coverage report
-npm run test:coverage
-```
-
-**Test Categories:**
-
-- **Unit Tests**: Server helper functions and performance monitor utilities
-- **E2E API Tests**: Complete endpoint testing with real HTTP requests
-- **Error Handling**: Invalid input validation and appropriate error responses
-- **Edge Cases**: Boundary conditions, security attacks (XSS, SQL injection), Unicode handling
-- **Performance Tests**: Concurrent request handling and response time validation
-- **MCP Integration**: Topcoder server connectivity with fallback behavior testing
-
-**Test Features:**
-
-- **Comprehensive Coverage**: 25+ individual test scenarios across unit and E2E tests
-- **Concurrent Testing**: Validates system under load with multiple simultaneous requests
-- **Security Testing**: Tests for XSS and SQL injection attack vectors
-- **Performance Validation**: Ensures response times under 10 seconds average
-- **Fallback Testing**: Verifies graceful degradation when MCP server is unavailable
-- **Real HTTP Testing**: Uses Supertest for actual HTTP request/response testing
-- **Code Coverage**: Built-in coverage reporting with HTML output
-
-**Test Output:**
-
-```
-PASS tests/e2e/api.test.ts
-PASS tests/unit/serverHelpers.test.ts
-PASS tests/unit/performanceMonitor.test.ts
-
-Test Suites: 3 passed, 3 total
-Tests:       28 passed, 28 total
-Snapshots:   0 total
-Time:        15.2s
-```
-
-**Test Structure:**
-
-```
-backend/tests/
-├── setup.ts              # Global test configuration
-├── e2e/
-│   └── api.test.ts       # End-to-end API testing
-└── unit/
-    ├── serverHelpers.test.ts     # Helper function tests
-    └── performanceMonitor.test.ts # Performance monitoring tests
-```
-
-### Performance Monitoring (Module 7)
-
-Real-time performance tracking and health monitoring system:
-
-**Features:**
-
-- **Automatic Metrics Collection**: Tracks all API requests with response times, status codes, and timestamps
-- **Performance Statistics**: Calculates averages, error rates, and slow request percentages
-- **Health Status Monitoring**: Automatic system health assessment (Healthy/Warning/Critical)
-- **Endpoint-Specific Analytics**: Per-endpoint performance breakdown and error tracking
-- **Memory-Efficient Storage**: Maintains rolling window of last 1000 requests
-- **Built-in Alerts**: Console warnings for slow requests (>10s) and errors
-
-**API Endpoints:**
-
-```bash
-# Get current system health
-GET /health
-
-# Get detailed performance statistics
-GET /api/stats
-```
-
-**Environment Configuration:**
-
-```bash
-# Enable performance monitoring
-ENABLE_PERFORMANCE_MONITORING=true
-
-# Configure timeouts (milliseconds)
-MCP_TIMEOUT=30000
-API_TIMEOUT=45000
-REQUEST_TIMEOUT=60000
-```
+- **MCP Integration Testing**: Automatic fallback to educational content when MCP server is unavailable
+- **Input Validation**: Comprehensive validation for all user inputs with appropriate error messages
+- **Error Handling**: Graceful degradation with user-friendly error messages
+- **Connection Testing**: Automatic retry logic for network failures
 
 ### Environment Variables
 
 ```bash
 # Required
-MCP_ENDPOINT=https://your-topcoder-mcp-server.com
+MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp
 MCP_SESSION_TOKEN=64-character-hex-token
 
 # Optional
-PORT=3000
-NODE_ENV=development
-
-# Module 7 Performance Monitoring
-ENABLE_PERFORMANCE_MONITORING=true
-MCP_TIMEOUT=30000
-API_TIMEOUT=45000
-REQUEST_TIMEOUT=60000
+GRADIO_SERVER_PORT=7860
+GRADIO_SERVER_NAME=0.0.0.0
 ```
 
 ### Project Structure
 
 ```
 .
-├── app.py                 # Gradio frontend application
-├── requirements.txt       # Python dependencies for frontend
-├── start.sh              # Development startup script
-├── Dockerfile            # Multi-stage build for Hugging Face Spaces
-├── backend/
-│   ├── src/
-│   │   ├── server.ts     # Express API server
-│   │   ├── mcpService.ts # MCP integration & education logic
-│   │   ├── mcpCore.ts    # Core MCP functionality (Module 7)
-│   │   ├── mcpHelpers.ts # MCP helper functions (Module 7)
-│   │   ├── mcpFormatters.ts # MCP data formatting (Module 7)
-│   │   ├── serverHelpers.ts # Server validation utilities (Module 7)
-│   │   ├── performanceMonitor.ts # Performance tracking (Module 7)
-│   │   ├── mcpUtils.ts   # MCP utilities (headers, parsing)
-│   │   └── index.ts      # Console testing interface
-│   ├── tests/            # Jest testing framework (Module 7)
-│   │   ├── setup.ts      # Global test configuration
-│   │   ├── e2e/
-│   │   │   └── api.test.ts # End-to-end API testing
-│   │   └── unit/
-│   │       ├── serverHelpers.test.ts # Helper function tests
-│   │       └── performanceMonitor.test.ts # Performance monitor tests
-│   ├── jest.config.js    # Jest configuration
-│   ├── package.json      # Node.js dependencies with Jest
-│   ├── tsconfig.json     # TypeScript configuration
-│   └── .env              # Environment variables (not committed)
+├── app.py                 # Gradio web application with built-in MCP client
+├── requirements.txt       # Python dependencies
+├── Dockerfile            # Container build for Hugging Face Spaces
+├── .env                  # Environment variables (not committed)
 ├── docs/
 │   └── topcoder-challenge-details.md  # Challenge documentation
 ├── CLAUDE.md             # Development guidelines for Claude Code
@@ -538,16 +372,14 @@ REQUEST_TIMEOUT=60000
 
 ### Current Features
 
-✅ **Web Interface**: Complete Gradio-based frontend with interactive Algorithm Design Canvas  
-✅ **Real-time MCP Integration**: Live Topcoder challenges and skills data via MCP server  
+✅ **Web Interface**: Complete Gradio-based application with interactive Algorithm Design Canvas  
+✅ **Direct MCP Integration**: Built-in Python MCP client for live Topcoder challenges and skills data  
 ✅ **4-Phase Canvas Methodology**: Structured progression through Constraints → Ideas → Tests → Code  
 ✅ **Educational Guidance**: Socratic questioning approach with phase-specific hints  
-✅ **Multi-Service Deployment**: Dockerized full-stack application for Hugging Face Spaces  
-✅ **Enhanced Error Handling**: Comprehensive error classification with timeout management and fallback behavior  
-✅ **Performance Monitoring**: Real-time metrics collection with health status monitoring and alerts  
-✅ **Comprehensive Testing**: Jest-based testing framework with 25+ unit and E2E test scenarios  
-✅ **Security Hardening**: Input validation, XSS protection, and injection attack prevention  
-✅ **Timeout Management**: Request-level timeouts with automatic retry logic for network failures
+✅ **Single-Service Deployment**: Streamlined Python application for Hugging Face Spaces  
+✅ **Enhanced Error Handling**: Comprehensive error handling with timeout management and fallback behavior  
+✅ **Built-in Validation**: Input validation and graceful error handling throughout the application  
+✅ **Connection Management**: Automatic retry logic and session management for MCP server connectivity
 
 ### Future Enhancements
 
