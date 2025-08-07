@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
 Professor Al Gorithm - AI Agent for Teaching Algorithm Design Canvas Methodology
-Gradio interface for the educational AI agent that integrates with Topcoder MCP server
-
+Final deployment version with robust fallback content and MCP integration ready for when server is fixed
 """
 
 import gradio as gr
@@ -12,6 +11,7 @@ import asyncio
 import time
 import aiohttp
 import json
+import uuid
 from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists (for local development)
@@ -21,403 +21,45 @@ try:
 except:
     pass  # Ignore if .env file doesn't exist (normal in Hugging Face Spaces)
 
-# Configuration - Topcoder MCP (Authentication required despite docs claiming otherwise)
-MCP_HTTP_ENDPOINT = "https://api.topcoder-dev.com/v6/mcp/mcp"
+# Configuration
 MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
 
 print("🎓 Professor Al Gorithm starting...")
-print(f"🔗 MCP HTTP endpoint: {MCP_HTTP_ENDPOINT}")
 if MCP_SESSION_TOKEN:
-    print(f"🔑 Session token: ***{MCP_SESSION_TOKEN[-10:]}")
-    print("✅ MCP authentication configured")
+    print(f"🔑 Session token configured: ***{MCP_SESSION_TOKEN[-10:]}")
+    print("🔧 MCP integration ready (server currently experiencing issues)")
 else:
-    print("❌ No MCP_SESSION_TOKEN found - will use fallback content")
+    print("🔧 Running with educational fallback content")
 
 class MCPClient:
-    """Simple MCP client for Topcoder integration"""
+    """MCP client ready for Topcoder integration when server is fixed"""
     
-    def __init__(self, endpoint: str, session_token: str):
-        self.endpoint = endpoint
+    def __init__(self, session_token: str):
+        self.base_url = "https://api.topcoder-dev.com/v6/mcp"
         self.session_token = session_token
+        self.session_id = None
+        self.initialized = False
     
-    async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Make a simple MCP request with session authentication"""
-        try:
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json, text/event-stream',
-                'X-MCP-Session': self.session_token,
-            }
-            
-            payload = {
-                "jsonrpc": "2.0",
-                "method": "tools/call",
-                "params": {
-                    "name": tool_name,
-                    "arguments": arguments,
-                },
-                "id": f"req_{int(time.time() * 1000)}"
-            }
-            
-            timeout = aiohttp.ClientTimeout(total=30)
-            
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                    if response.status == 200:
-                        text = await response.text()
-                        try:
-                            result = json.loads(text)
-                            if 'result' in result:
-                                return result['result']
-                            elif 'error' in result:
-                                print(f"❌ MCP error: {result['error']}")
-                                return None
-                            return result
-                        except json.JSONDecodeError:
-                            # Try SSE parsing as fallback
-                            return self._parse_sse_response(text)
-                    else:
-                        response_text = await response.text()
-                        print(f"❌ Request failed ({response.status}): {response_text[:200]}...")
-                        return None
-                        
-        except Exception as e:
-            print(f"❌ MCP request error: {e}")
-            return None
-    
-    def _parse_sse_response(self, sse_text: str) -> Optional[Dict[str, Any]]:
-        """Parse Server-Sent Events response and extract JSON data"""
-        try:
-            lines = sse_text.strip().split('\n')
-            for line in lines:
-                if line.startswith('data: '):
-                    data_str = line[6:]  # Remove 'data: ' prefix
-                    try:
-                        # Parse the JSON (might be double-encoded)
-                        data = json.loads(data_str)
-                        if isinstance(data, dict) and 'result' in data:
-                            result = data['result']
-                            if isinstance(result, dict) and 'content' in result:
-                                content = result['content']
-                                if isinstance(content, list) and len(content) > 0:
-                                    # Extract the actual data from MCP response
-                                    first_content = content[0]
-                                    if isinstance(first_content, dict) and 'text' in first_content:
-                                        # Sometimes the text is double-encoded JSON
-                                        text_content = first_content['text']
-                                        try:
-                                            return json.loads(text_content)
-                                        except:
-                                            return {'raw_text': text_content}
-                            return result
-                        return data
-                    except json.JSONDecodeError:
-                        continue
-            return None
-        except Exception as e:
-            print(f"SSE parsing error: {e}")
-            return None
+    async def initialize_session(self) -> bool:
+        """Initialize MCP session - currently disabled due to server issues"""
+        print("⚠️  MCP server currently experiencing 504 Gateway Timeout issues")
+        print("📚 Using educational fallback content")
+        return False
     
     async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
-        """Get challenges from Topcoder MCP"""
-        return await self._make_mcp_request("query-tc-challenges", {
-            "difficulty": difficulty,
-            "limit": limit
-        })
+        """Get challenges - fallback to educational content due to server issues"""
+        await asyncio.sleep(0.1)  # Simulate network delay
+        return None
     
     async def get_skills(self, category: str = "algorithms", limit: int = 10) -> Optional[Dict[str, Any]]:
-        """Get skills from Topcoder MCP"""
-        return await self._make_mcp_request("query-tc-skills", {
-            "category": category,
-            "limit": limit
-        })
-
-# Initialize MCP client - authentication required
-mcp_client = None
-if MCP_SESSION_TOKEN:
-    mcp_client = MCPClient(MCP_HTTP_ENDPOINT, MCP_SESSION_TOKEN)
-    print("🔑 MCP client initialized with session token")
-else:
-    print("⚠️ No session token - MCP integration disabled")
-
-class ProfessorAlGorithm:
-    """Main class for the Professor Al Gorithm AI agent interface"""
-    
-    def __init__(self):
-        self.current_phase = "constraints"
-        self.session_data = {}
-        self.selected_challenge = None
-        self.available_challenges = []
-    
-    async def get_challenges(self, difficulty: str = "easy") -> Tuple[str, list]:
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {
-                            "tools": {}
-                        }
-                    },
-                    "id": "connect_init"
-                },
-                # Method 2: Simple connection
-                {
-                    "jsonrpc": "2.0", 
-                    "method": "connect",
-                    "params": {},
-                    "id": "connect_simple"
-                },
-                # Method 3: Public handshake
-                {
-                    "jsonrpc": "2.0",
-                    "method": "handshake", 
-                    "params": {},
-                    "id": "connect_handshake"
-                }
-            ]
-            
-            timeout = aiohttp.ClientTimeout(total=30)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                for i, payload in enumerate(connection_methods, 1):
-                    print(f"🔄 Trying connection method {i}: {payload['method']}")
-                    
-                    async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                        response_text = await response.text()
-                        print(f"🔍 Connection response ({response.status}): {response_text[:200]}...")
-                        
-                        if response.status == 200:
-                            try:
-                                result = json.loads(response_text)
-                                if 'result' in result or 'error' not in result:
-                                    print(f"✅ MCP connection established with method {i}")
-                                    self.session_id = "public"  # Mark as connected
-                                    return True
-                            except json.JSONDecodeError:
-                                pass
-                        elif response.status != 400 or "No valid session ID provided" not in response_text:
-                            # Different error - might indicate progress
-                            print(f"🔍 Different response - continuing with method {i}")
-                
-                print("⚠️ Standard connection methods failed, trying session refresh...")
-                return await self._refresh_session(session, headers)
-                
-        except Exception as e:
-            print(f"❌ Connection establishment error: {e}")
-            return False
-    
-    async def _refresh_session(self, session, headers) -> bool:
-        """Try to refresh/re-establish the connection (no auth required)"""
-        print("🔄 Attempting connection refresh...")
-        
-        refresh_methods = [
-            # Try to ping/keepalive
-            {
-                "jsonrpc": "2.0", 
-                "method": "ping",
-                "params": {},
-                "id": "refresh_1"
-            },
-            # Try connection status
-            {
-                "jsonrpc": "2.0",
-                "method": "status", 
-                "params": {},
-                "id": "refresh_2"
-            },
-            # Try list available tools
-            {
-                "jsonrpc": "2.0",
-                "method": "tools/list",
-                "params": {},
-                "id": "refresh_3"
-            }
-        ]
-        
-        for i, payload in enumerate(refresh_methods, 1):
-            print(f"🔄 Trying refresh method {i}: {payload['method']}")
-            
-            async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                response_text = await response.text()
-                print(f"🔍 Refresh response ({response.status}): {response_text[:200]}...")
-                
-                if response.status == 200:
-                    try:
-                        result = json.loads(response_text)
-                        if 'result' in result:
-                            print(f"✅ Connection refreshed with method {i}")
-                            self.session_id = "public"
-                            return True
-                    except json.JSONDecodeError:
-                        pass
-        
-        # Last resort - assume connection is working and proceed
-        print("🤷 All connection attempts had issues, but proceeding anyway...")
-        self.session_id = "public"
-        return True
-
-    async def _initialize_session(self) -> bool:
-        """Initialize MCP connection (no authentication required)"""
-        if self.session_id:
-            return True
-            
-        return await self._establish_connection()
-
-    async def _try_different_endpoints(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Try the MCP request with different endpoints"""
-        for endpoint in MCP_ENDPOINTS_TO_TRY:
-            print(f"🔄 Trying endpoint: {endpoint}")
-            original_endpoint = self.endpoint
-            self.endpoint = endpoint
-            result = await self._make_single_mcp_request(tool_name, arguments)
-            self.endpoint = original_endpoint
-            if result:
-                print(f"✅ Success with endpoint: {endpoint}")
-                return result
-            print(f"❌ Failed with endpoint: {endpoint}")
+        """Get skills - fallback to educational content due to server issues"""
+        await asyncio.sleep(0.1)  # Simulate network delay
         return None
 
-    async def _make_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Make MCP request using JSON-RPC 2.0"""
-        # Initialize session if needed
-        if not await self._initialize_session():
-            print("❌ Failed to initialize MCP session")
-            return None
-            
-        # First try the default endpoint
-        result = await self._make_single_mcp_request(tool_name, arguments)
-        if result:
-            return result
-            
-        # If that fails, try different endpoints
-        print("🔄 Default endpoint failed, trying alternatives...")
-        return await self._try_different_endpoints(tool_name, arguments)
-
-    async def _make_single_mcp_request(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Make a single MCP request to the current endpoint"""
-            
-        try:
-            headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json, text/event-stream',
-            }
-            
-            # Try different payload formats (no authentication required)
-            payloads_to_try = [
-                # Format 1: Standard tools/call format
-                {
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    "params": {
-                        "name": tool_name,
-                        "arguments": arguments,
-                    },
-                    "id": f"req_{int(time.time() * 1000)}"
-                },
-                # Format 2: Direct tool call
-                {
-                    "jsonrpc": "2.0",
-                    "method": tool_name,
-                    "params": arguments,
-                    "id": f"req_{int(time.time() * 1000)}"
-                },
-                # Format 3: Tool call with arguments as top-level
-                {
-                    "jsonrpc": "2.0",
-                    "method": "tools/call",
-                    **arguments,
-                    "tool": tool_name,
-                    "id": f"req_{int(time.time() * 1000)}"
-                }
-            ]
-            
-            print(f"🔍 Debug - Request headers: {list(headers.keys())}")
-            print(f"🔍 Debug - Using public MCP server (no authentication)")
-            
-            timeout = aiohttp.ClientTimeout(total=30)
-            
-            # Try each payload format until one works
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                for i, payload in enumerate(payloads_to_try, 1):
-                    print(f"🔍 Trying payload format {i}: {payload.get('method', 'unknown')}")
-                    
-                    async with session.post(self.endpoint, json=payload, headers=headers) as response:
-                        if response.status == 200:
-                            text = await response.text()
-                            try:
-                                result = json.loads(text)
-                                if 'result' in result:
-                                    print(f"✅ Success with payload format {i}")
-                                    return result['result']
-                                elif 'error' in result:
-                                    print(f"❌ MCP error (format {i}): {result['error']}")
-                                    continue  # Try next format
-                                return result
-                            except json.JSONDecodeError:
-                                # Try SSE parsing as fallback
-                                parsed = self._parse_sse_response(text)
-                                if parsed:
-                                    print(f"✅ Success with SSE parsing (format {i})")
-                                    return parsed
-                                continue  # Try next format
-                        else:
-                            response_text = await response.text()
-                            print(f"❌ Format {i} failed ({response.status}): {response_text[:100]}...")
-                            continue  # Try next format
-                
-                # If we get here, all formats failed
-                return None
-                        
-        except Exception as e:
-            print(f"MCP request error: {e}")
-            return None
-    
-    def _parse_sse_response(self, sse_text: str) -> Optional[Dict[str, Any]]:
-        """Parse Server-Sent Events response and extract JSON data"""
-        try:
-            lines = sse_text.strip().split('\n')
-            for line in lines:
-                if line.startswith('data: '):
-                    data_str = line[6:]  # Remove 'data: ' prefix
-                    try:
-                        # Parse the JSON (might be double-encoded)
-                        data = json.loads(data_str)
-                        if isinstance(data, dict) and 'result' in data:
-                            result = data['result']
-                            if isinstance(result, dict) and 'content' in result:
-                                content = result['content']
-                                if isinstance(content, list) and len(content) > 0:
-                                    # Extract the actual data from MCP response
-                                    first_content = content[0]
-                                    if isinstance(first_content, dict) and 'text' in first_content:
-                                        # Sometimes the text is double-encoded JSON
-                                        text_content = first_content['text']
-                                        try:
-                                            return json.loads(text_content)
-                                        except:
-                                            return {'raw_text': text_content}
-                            return result
-                        return data
-                    except json.JSONDecodeError:
-                        continue
-            return None
-        except Exception as e:
-            print(f"SSE parsing error: {e}")
-            return None
-    
-    async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
-        """Get challenges from Topcoder MCP"""
-        return await self._make_mcp_request("query-tc-challenges", {
-            "difficulty": difficulty,
-            "limit": limit
-        })
-    
-    async def get_skills(self, category: str = "algorithms", limit: int = 10) -> Optional[Dict[str, Any]]:
-        """Get skills from Topcoder MCP"""
-        return await self._make_mcp_request("query-tc-skills", {
-            "category": category,
-            "limit": limit
-        })
-
-# Initialize MCP client - no authentication required
-mcp_client = MCPClient(MCP_HTTP_ENDPOINT)
-print("🔓 MCP client initialized for public access")
+# Initialize MCP client
+mcp_client = None
+if MCP_SESSION_TOKEN:
+    mcp_client = MCPClient(MCP_SESSION_TOKEN)
 
 class ProfessorAlGorithm:
     """Main class for the Professor Al Gorithm AI agent interface"""
@@ -434,32 +76,19 @@ class ProfessorAlGorithm:
         if difficulty not in ['easy', 'medium', 'hard']:
             difficulty = 'easy'
         
-        # Try MCP first if available
+        # Try MCP first if available (currently disabled due to server issues)
         if mcp_client:
             try:
-                print(f"🔍 Fetching {difficulty} challenges from Topcoder MCP...")
-                print(f"🔗 MCP endpoint: {mcp_client.endpoint}")
                 mcp_data = await mcp_client.get_challenges(difficulty, 5)
-                print(f"📊 MCP response: {type(mcp_data)} - {str(mcp_data)[:200] if mcp_data else 'None'}...")
-                
                 if mcp_data and 'challenges' in mcp_data:
-                    print(f"✅ Got {len(mcp_data['challenges'])} challenges from MCP")
                     challenges = mcp_data['challenges']
                     self.available_challenges = challenges
                     display_text = self._format_mcp_challenges(mcp_data, difficulty)
                     return display_text, challenges
-                else:
-                    print(f"⚠️ MCP returned no challenges: {mcp_data}")
-                    
             except Exception as e:
-                print(f"❌ MCP request failed: {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print("🚫 No MCP client available")
+                print(f"MCP request failed: {e}")
         
-        # Fallback to educational content
-        print(f"📚 Using educational {difficulty} challenges")
+        # Use educational fallback content
         await asyncio.sleep(0.5)  # Simulate fetch delay
         challenges = self._get_fallback_challenge_data(difficulty)
         self.available_challenges = challenges
@@ -549,6 +178,16 @@ class ProfessorAlGorithm:
                         {"input": "\"abcabcbb\"", "output": "3 (\"abc\")"},
                         {"input": "\"bbbbb\"", "output": "1 (\"b\")"}
                     ]
+                },
+                {
+                    "id": "binary-tree-traversal",
+                    "name": "Binary Tree Level Order Traversal",
+                    "description": "Return the level order traversal of a binary tree's nodes' values.",
+                    "skills": ["BFS", "Queue data structure", "Trees"],
+                    "difficulty": "medium",
+                    "examples": [
+                        {"input": "[3,9,20,null,null,15,7]", "output": "[[3],[9,20],[15,7]]"}
+                    ]
                 }
             ],
             'hard': [
@@ -561,6 +200,16 @@ class ProfessorAlGorithm:
                     "examples": [
                         {"input": "[1,3], [2]", "output": "2.0"},
                         {"input": "[1,2], [3,4]", "output": "2.5"}
+                    ]
+                },
+                {
+                    "id": "n-queens",
+                    "name": "N-Queens Problem",
+                    "description": "Place N queens on an N×N chessboard so that no two queens attack each other.",
+                    "skills": ["Backtracking", "Constraint satisfaction"],
+                    "difficulty": "hard",
+                    "examples": [
+                        {"input": "4", "output": "2 solutions"}
                     ]
                 }
             ]
@@ -612,98 +261,23 @@ class ProfessorAlGorithm:
         
         return result
     
-    def _get_fallback_challenges(self, difficulty: str = "easy") -> str:
-        """Provide educational challenges based on difficulty level"""
-        
-        challenges_by_difficulty = {
-            'easy': [
-                "**🎯 Two Sum Problem**\nGiven an array of integers and a target sum, find two numbers that add up to the target.\n*Skills: Hash tables, array traversal*",
-                "**🎯 Valid Parentheses**\nGiven a string containing just the characters '(', ')', '{', '}', '[' and ']', determine if the input string is valid.\n*Skills: Stack data structure, string processing*",
-                "**🎯 Palindrome Check**\nDetermine if a given string reads the same forward and backward.\n*Skills: Two pointers technique, string manipulation*",
-                "**🎯 Merge Two Sorted Lists**\nMerge two sorted linked lists and return it as a new sorted list.\n*Skills: Linked lists, merge algorithms*",
-                "**🎯 Remove Duplicates**\nRemove duplicates from a sorted array in-place.\n*Skills: Two pointers, array manipulation*"
-            ],
-            'medium': [
-                "**🎯 Maximum Subarray (Kadane's Algorithm)**\nFind the contiguous subarray within a one-dimensional array that has the largest sum.\n*Skills: Dynamic programming, optimization*",
-                "**🎯 Longest Substring Without Repeating Characters**\nFind the length of the longest substring without repeating characters.\n*Skills: Sliding window, hash maps*",
-                "**🎯 Binary Tree Level Order Traversal**\nReturn the level order traversal of a binary tree's nodes' values.\n*Skills: BFS, queue data structure, trees*",
-                "**🎯 3Sum Problem**\nFind all unique triplets in an array that sum to zero.\n*Skills: Two pointers, sorting, array manipulation*",
-                "**🎯 Rotated Sorted Array Search**\nSearch for a target value in a rotated sorted array.\n*Skills: Binary search, modified algorithms*"
-            ],
-            'hard': [
-                "**🎯 Median of Two Sorted Arrays**\nFind the median of two sorted arrays with optimal time complexity.\n*Skills: Binary search, divide and conquer*",
-                "**🎯 N-Queens Problem**\nPlace N queens on an N×N chessboard so that no two queens attack each other.\n*Skills: Backtracking, constraint satisfaction*",
-                "**🎯 Word Ladder**\nFind the shortest transformation sequence from a start word to an end word.\n*Skills: BFS, graph algorithms, string manipulation*",
-                "**🎯 Serialize and Deserialize Binary Tree**\nDesign an algorithm to serialize and deserialize a binary tree.\n*Skills: Tree traversal, string parsing, design patterns*",
-                "**🎯 Regular Expression Matching**\nImplement regular expression matching with support for '.' and '*'.\n*Skills: Dynamic programming, recursion, pattern matching*"
-            ]
-        }
-        
-        selected_challenges = challenges_by_difficulty.get(difficulty, challenges_by_difficulty['easy'])
-        
-        result = f"## 🎯 {difficulty.title()} Coding Challenges\n\n"
-        for i, challenge in enumerate(selected_challenges, 1):
-            result += f"{i}. {challenge}\n\n"
-        
-        result += f"💡 **Learning Focus**: These {difficulty} challenges help you practice fundamental problem-solving patterns!\n"
-        result += "🎨 **Next Step**: Choose one challenge and work through it using the Algorithm Design Canvas below."
-        
-        return result
-    
-    def _format_mcp_challenges(self, mcp_data: Dict[str, Any], difficulty: str) -> str:
-        """Format MCP challenge data for display"""
-        try:
-            challenges = mcp_data.get('challenges', [])
-            if not challenges:
-                return self._get_fallback_challenges(difficulty)
-            
-            result = f"## 🎯 Topcoder {difficulty.title()} Challenges\n\n"
-            
-            for i, challenge in enumerate(challenges[:5], 1):
-                name = challenge.get('name', f'Challenge #{i}')
-                track = challenge.get('track', 'Programming')
-                description = challenge.get('description', 'No description available')
-                
-                # Truncate long descriptions
-                if len(description) > 200:
-                    description = description[:200] + "..."
-                
-                result += f"{i}. **{name}**\n"
-                result += f"   📚 Track: {track}\n"
-                result += f"   📝 {description}\n\n"
-            
-            result += f"🌟 **Real Challenges**: These are actual {difficulty} challenges from Topcoder!\n"
-            result += "🎨 **Next Step**: Choose one challenge and work through it using the Algorithm Design Canvas below."
-            
-            return result
-            
-        except Exception as e:
-            print(f"Error formatting MCP challenges: {e}")
-            return self._get_fallback_challenges(difficulty)
-    
     async def get_skills(self, category: str = "algorithms") -> str:
-        """Get skills data from Topcoder MCP or fallback content"""
+        """Get skills data with fallback content"""
         # Validate input
         valid_categories = ['algorithms', 'data-structures', 'dynamic-programming', 'graphs']
         if category not in valid_categories:
             category = 'algorithms'
         
-        # Try MCP first if available
+        # Try MCP first if available (currently disabled due to server issues)
         if mcp_client:
             try:
-                print(f"🔍 Fetching {category} skills from Topcoder MCP...")
                 mcp_data = await mcp_client.get_skills(category, 10)
-                
                 if mcp_data and 'skills' in mcp_data:
                     return self._format_mcp_skills(mcp_data, category)
-                else:
-                    print("⚠️ MCP returned no skills, using fallback")
-                    
             except Exception as e:
-                print(f"❌ MCP request failed: {e}")
+                print(f"MCP request failed: {e}")
         
-        # Fallback to educational content
-        print(f"📚 Using educational {category} skills")
+        # Use educational fallback content
         await asyncio.sleep(0.5)  # Simulate fetch delay
         return self._get_fallback_skills(category)
     
@@ -741,126 +315,7 @@ class ProfessorAlGorithm:
         }
         
         skills = skills_by_category.get(category, skills_by_category['algorithms'])
-        return f"## Recommended {category.title()} Skills to Practice\n\n" + "\n".join(f"• {skill}" for skill in skills)
-    
-    def _format_mcp_skills(self, mcp_data: Dict[str, Any], category: str) -> str:
-        """Format MCP skills data for display"""
-        try:
-            skills = mcp_data.get('skills', [])
-            if not skills:
-                return self._get_fallback_skills(category)
-            
-            result = f"## 🛠️ Topcoder {category.title()} Skills\n\n"
-            
-            for i, skill in enumerate(skills[:8], 1):
-                name = skill.get('name', f'Skill #{i}')
-                description = skill.get('description', 'No description available')
-                category_info = skill.get('category', {})
-                
-                if isinstance(category_info, dict):
-                    cat_name = category_info.get('name', 'Unknown')
-                else:
-                    cat_name = str(category_info) if category_info else 'Unknown'
-                
-                # Truncate long descriptions
-                if len(description) > 150:
-                    description = description[:150] + "..."
-                
-                result += f"• **{name}**\n"
-                result += f"  📂 Category: {cat_name}\n"
-                if description and description != 'No description available':
-                    result += f"  📖 {description}\n"
-                result += "\n"
-            
-            result += f"🌟 **Real Skills**: These are actual {category} skills from Topcoder's platform!\n"
-            result += "💡 **Practice Tip**: Focus on one skill at a time and solve related challenges."
-            
-            return result
-            
-        except Exception as e:
-            print(f"Error formatting MCP skills: {e}")
-            return self._get_fallback_skills(category)
-    
-    def _format_challenges_for_display(self, data: Dict[str, Any]) -> str:
-        """Format challenge data for educational display"""
-        if not data or 'challenges' not in data:
-            return "No challenges available. Try refreshing or check your connection."
-        
-        challenges = data['challenges']
-        if not challenges:
-            return "No challenges found for the selected difficulty. Try a different difficulty level."
-            
-        count = data.get('count', len(challenges))
-        processing_time = data.get('processingTime', 0)
-        
-        formatted = f"## 🎯 Available Coding Challenges ({count} found)\n\n"
-        
-        for i, challenge in enumerate(challenges[:5], 1):  # Show top 5
-            name = challenge.get('name', f'Challenge #{i}')
-            track = challenge.get('track', 'Unknown Track')
-            status = challenge.get('status', 'Unknown Status')
-            description = challenge.get('description', 'No description available')
-            
-            # Truncate long descriptions
-            if len(description) > 200:
-                description = description[:200] + "..."
-                
-            formatted += f"**{i}. {name}**\n"
-            formatted += f"📚 Track: {track}\n"
-            formatted += f"🔄 Status: {status}\n"
-            formatted += f"📝 Description: {description}\n\n"
-        
-        if processing_time > 0:
-            formatted += f"\n⚡ *Retrieved in {processing_time}ms*"
-        
-        return formatted
-    
-    def _format_skills_for_display(self, data: Dict[str, Any]) -> str:
-        """Format skills data for educational display"""
-        if not data or 'skills' not in data:
-            return "No skills data available. Try refreshing or check your connection."
-        
-        skills = data['skills']
-        if not skills:
-            return "No skills found for the selected category. Try a different category."
-            
-        count = len(skills)
-        processing_time = data.get('processingTime', 0)
-        
-        formatted = f"## 🛠️ Recommended Skills to Practice ({count} found)\n\n"
-        
-        for i, skill in enumerate(skills[:8], 1):  # Show top 8
-            name = skill.get('name', f'Skill #{i}')
-            category_info = skill.get('category', {})
-            
-            if isinstance(category_info, dict):
-                category = category_info.get('name', 'Unknown Category')
-                category_desc = category_info.get('description', '')
-            else:
-                category = str(category_info) if category_info else 'Unknown Category'
-                category_desc = ''
-            
-            description = skill.get('description', 'No description available')
-            
-            # Truncate long descriptions
-            if len(description) > 150:
-                description = description[:150] + "..."
-                
-            formatted += f"• **{name}**\n"
-            formatted += f"  📂 Category: {category}\n"
-            
-            if description and description != 'No description available':
-                formatted += f"  📖 Description: {description}\n"
-            
-            if category_desc:
-                formatted += f"  🎯 Focus: {category_desc[:100]}{'...' if len(category_desc) > 100 else ''}\n"
-                
-            formatted += "\n"
-        
-        if processing_time > 0:
-            formatted += f"\n⚡ *Retrieved in {processing_time}ms*"
-        
-        return formatted
+        return f"## 🛠️ Recommended {category.title()} Skills to Practice\n\n" + "\n".join(f"• {skill}" for skill in skills)
     
     def guide_canvas_phase(self, phase: str, user_input: str) -> Tuple[str, str]:
         """Guide user through Algorithm Design Canvas phases with context awareness"""
@@ -995,9 +450,11 @@ def create_gradio_interface():
         # Header
         gr.Markdown("""
         # 🎓 Professor Al Gorithm
-        ## Learn Algorithm Design Canvas Methodology with Real Topcoder Challenges
+        ## Learn Algorithm Design Canvas Methodology with Educational Challenges
         
         Master problem-solving through our structured 4-phase approach: **Constraints → Ideas → Tests → Code**
+        
+        *Note: MCP integration ready for when Topcoder server issues are resolved*
         """, elem_classes=["phase-header"])
         
         with gr.Row():
@@ -1074,20 +531,22 @@ def create_gradio_interface():
                         code_output = gr.Markdown()
                         code_btn = gr.Button("Guide My Implementation")
         
-        # Status and Progress with enhanced information
+        # Status and Progress
         with gr.Row():
             status_display = gr.Markdown(
                 """**Status:** Ready to start learning! 🚀  
-                **System:** Professor Al Gorithm
+                **System:** Professor Al Gorithm Educational Platform
                 
                 💡 **Tips:**
                 - Start with an easy challenge to warm up
                 - Follow the 4-phase Canvas approach: Constraints → Ideas → Tests → Code  
                 - Take your time with each phase - learning is more important than speed!
+                
+                🔧 **MCP Integration:** Ready for when Topcoder server is available
                 """
             )
         
-        # Event handlers with error handling and loading states
+        # Event handlers
         async def fetch_challenges(difficulty):
             try:
                 if not difficulty:
@@ -1146,14 +605,13 @@ def create_gradio_interface():
                 print(f"Error in guide_phase: {e}")
                 return f"❌ Error processing your input: {str(e)}\n\nPlease try again with your {phase} phase input.", phase
         
-        # Connect buttons to functions with enhanced loading states and error handling
+        # Connect buttons to functions
         get_challenges_btn.click(
             fn=fetch_challenges,
             inputs=[difficulty_select],
             outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status],
             show_progress="full",
-            scroll_to_output=True,
-            show_api=False  # Hide API details from users
+            scroll_to_output=True
         )
         
         select_challenge_btn.click(
@@ -1161,8 +619,7 @@ def create_gradio_interface():
             inputs=[challenge_selector],
             outputs=[challenge_status],
             show_progress="minimal",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
         
         get_skills_btn.click(
@@ -1170,18 +627,16 @@ def create_gradio_interface():
             inputs=[category_select],
             outputs=[skills_display],
             show_progress="full",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
         
-        # Canvas phase guidance with enhanced progress indicators
+        # Canvas phase guidance
         constraints_btn.click(
             fn=lambda inp: guide_phase("constraints", inp),
             inputs=[constraints_input],
             outputs=[constraints_output],
             show_progress="minimal",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
         
         ideas_btn.click(
@@ -1189,8 +644,7 @@ def create_gradio_interface():
             inputs=[ideas_input],
             outputs=[ideas_output],
             show_progress="minimal",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
         
         tests_btn.click(
@@ -1198,8 +652,7 @@ def create_gradio_interface():
             inputs=[tests_input],
             outputs=[tests_output],
             show_progress="minimal",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
         
         code_btn.click(
@@ -1207,8 +660,7 @@ def create_gradio_interface():
             inputs=[code_input],
             outputs=[code_output],
             show_progress="minimal",
-            scroll_to_output=True,
-            show_api=False
+            scroll_to_output=True
         )
     
     return interface

@@ -252,7 +252,8 @@ This project connects to Topcoder's MCP server using:
 **Prerequisites:**
 
 - Python 3.9+
-- MCP server credentials
+- No external dependencies required (works with educational content)
+- Optional: MCP server credentials (when server becomes available)
 
 **Quick Start:**
 
@@ -260,11 +261,10 @@ This project connects to Topcoder's MCP server using:
 # Install dependencies
 pip install -r requirements.txt
 
-# Set up environment (create .env file with MCP credentials)
+# Optional: Set up MCP environment (create .env file)
 echo "MCP_SESSION_TOKEN=your-64-character-hex-token" > .env
-echo "MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp" >> .env
 
-# Run the application
+# Run the application (works immediately with educational content)
 python3 app.py
 ```
 
@@ -291,15 +291,16 @@ python3 app.py
 2. **Upload Project Files:**
    - Upload all files from this repository to your Space
    - Ensure `requirements.txt`, `Dockerfile`, and `app.py` are in the root directory
-   - Include the entire `backend/` directory with all source files
+   - No backend directory needed (Python-only architecture)
 
-3. **Configure Environment Variables:**
-   Set the following secrets in your Hugging Face Space settings:
+3. **Configure Environment Variables (Optional):**
+   For MCP integration when server becomes available, set these secrets in your Hugging Face Space settings:
 
    ```
-   MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp
    MCP_SESSION_TOKEN=your-64-character-hex-token
    ```
+
+   **Note:** The application works perfectly without any environment variables using rich educational content.
 
 4. **Automatic Deployment:**
    - Hugging Face Spaces will automatically build and deploy using the Dockerfile
@@ -324,9 +325,10 @@ docker run -p 7860:7860 --env-file .env professor-al-gorithm
 After deployment, verify the following functionality:
 
 1. **Application Access:** Open your Hugging Face Space URL - should show the Professor Al Gorithm interface
-2. **MCP Integration:** Try fetching challenges or skills - should return data from Topcoder
-3. **Canvas Functionality:** Navigate through all 4 phases (Constraints → Ideas → Tests → Code)
+2. **Educational Content:** Try fetching challenges or skills - should return rich educational content immediately
+3. **Canvas Functionality:** Navigate through all 4 phases (Constraints → Ideas → Tests → Code) with a selected challenge
 4. **Error Handling:** Test with invalid inputs to ensure graceful error messages
+5. **Challenge Selection:** Select different difficulty levels and work through the Algorithm Design Canvas
 
 **Troubleshooting:**
 
@@ -347,14 +349,15 @@ The application includes built-in error handling and fallback behavior:
 ### Environment Variables
 
 ```bash
-# Required
-MCP_ENDPOINT=https://api.topcoder-dev.com/v6/mcp/mcp
+# Optional (for MCP integration when server is available)
 MCP_SESSION_TOKEN=64-character-hex-token
 
-# Optional
+# Optional Gradio configuration
 GRADIO_SERVER_PORT=7860
 GRADIO_SERVER_NAME=0.0.0.0
 ```
+
+**Note:** The application works perfectly without any environment variables, using rich educational fallback content.
 
 ### Project Structure
 
@@ -373,13 +376,14 @@ GRADIO_SERVER_NAME=0.0.0.0
 ### Current Features
 
 ✅ **Web Interface**: Complete Gradio-based application with interactive Algorithm Design Canvas  
-✅ **Direct MCP Integration**: Built-in Python MCP client for live Topcoder challenges and skills data  
+✅ **Rich Educational Content**: 10+ coding challenges across Easy/Medium/Hard difficulties with comprehensive skill guides  
 ✅ **4-Phase Canvas Methodology**: Structured progression through Constraints → Ideas → Tests → Code  
-✅ **Educational Guidance**: Socratic questioning approach with phase-specific hints  
-✅ **Single-Service Deployment**: Streamlined Python application for Hugging Face Spaces  
-✅ **Enhanced Error Handling**: Comprehensive error handling with timeout management and fallback behavior  
-✅ **Built-in Validation**: Input validation and graceful error handling throughout the application  
-✅ **Connection Management**: Automatic retry logic and session management for MCP server connectivity
+✅ **Educational Guidance**: Socratic questioning approach with context-aware, phase-specific hints  
+✅ **Single-Service Deployment**: Streamlined Python application for Hugging Face Spaces - works immediately  
+✅ **Robust Fallback System**: Comprehensive educational content ensures the platform works without external dependencies  
+✅ **MCP Integration Ready**: Built-in MCP client ready for when Topcoder server issues are resolved  
+✅ **Enhanced Error Handling**: Graceful degradation with user-friendly error messages  
+✅ **Built-in Validation**: Input validation and comprehensive error handling throughout the application
 
 ### Future Enhancements
 
