@@ -27,34 +27,130 @@ MCP_SESSION_TOKEN = os.getenv("MCP_SESSION_TOKEN")
 print("🎓 Professor Al Gorithm starting...")
 if MCP_SESSION_TOKEN:
     print(f"🔑 Session token configured: ***{MCP_SESSION_TOKEN[-10:]}")
-    print("🔧 MCP integration ready (server currently experiencing issues)")
+    print("🔧 MCP integration enabled - will attempt to connect to Topcoder")
 else:
-    print("🔧 Running with educational fallback content")
+    print("🔧 Running with educational fallback content (no MCP token)")
 
 class MCPClient:
-    """MCP client ready for Topcoder integration when server is fixed"""
+    """MCP client for Topcoder integration"""
     
-    def __init__(self, session_token: str):
-        self.base_url = "https://api.topcoder-dev.com/v6/mcp"
-        self.session_token = session_token
+    def __init__(self, session_token: str = None):
+        self.sse_url = "https://api.topcoder-dev.com/v6/mcp/sse"
+        self.session_token = session_token  # Not needed for Topcoder but keeping for compatibility
         self.session_id = None
         self.initialized = False
     
     async def initialize_session(self) -> bool:
-        """Initialize MCP session - currently disabled due to server issues"""
-        print("⚠️  MCP server currently experiencing 504 Gateway Timeout issues")
+        """Initialize MCP session using SSE transport"""
+        if self.initialized:
+            return True
+            
+        try:
+            # For SSE-based MCP servers, we can skip the formal initialize step
+            # and go straight to making tool calls. The server will handle initialization.
+            self.session_id = str(uuid.uuid4())
+            self.initialized = True
+            print(f"✅ MCP SSE client ready for Topcoder server")
+            return True
+                        
+        except Exception as e:
+            print(f"❌ MCP initialization error: {str(e)}")
+        
         print("📚 Using educational fallback content")
         return False
     
-    async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
-        """Get challenges - fallback to educational content due to server issues"""
-        await asyncio.sleep(0.1)  # Simulate network delay
+    async def _make_tool_call(self, tool_name: str, arguments: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Make a tool call to the MCP server using SSE transport"""
+        if not await self.initialize_session():
+            return None
+            
+        try:
+            async with aiohttp.ClientSession() as session:
+                headers = {
+                    'Content-Type': 'application/json'
+                }
+                
+                # Build payload matching the Inspector format
+                payload = {
+                    "jsonrpc": "2.0",
+                    "id": int(time.time()),  # Use timestamp as ID
+                    "method": "tools/call",
+                    "params": {
+                        "name": tool_name,
+                        "arguments": self._format_arguments_for_mcp(tool_name, arguments),
+                        "_meta": {
+                            "progressToken": int(time.time()) % 1000
+                        }
+                    }
+                }
+                
+                print(f"📤 Sending MCP request: {tool_name} with args: {arguments}")
+                
+                async with session.post(self.sse_url, json=payload, headers=headers) as response:
+                    if response.status == 200:
+                        response_text = await response.text()
+                        print(f"📥 MCP response ({len(response_text)} chars): {response_text[:200]}...")
+                        
+                        try:
+                            data = json.loads(response_text)
+                            if 'result' in data and 'content' in data['result']:
+                                content = data['result']['content']
+                                if isinstance(content, list) and len(content) > 0:
+                                    text_content = content[0].get('text', '')
+                                    try:
+                                        return json.loads(text_content)
+                                    except json.JSONDecodeError:
+                                        return {'raw_response': text_content}
+                            elif 'result' in data:
+                                return data['result']
+                            else:
+                                return {'raw_response': response_text}
+                        except json.JSONDecodeError:
+                            return {'raw_response': response_text}
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ MCP call failed: {response.status} - {error_text[:200]}...")
+                        
+        except Exception as e:
+            print(f"❌ MCP call error: {str(e)}")
+        
         return None
     
+    def _format_arguments_for_mcp(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Format arguments to match the Inspector's format"""
+        if tool_name == "query-tc-skills":
+            # Convert category to name array format
+            category = arguments.get('category', 'algorithms')
+            return {
+                "name": [category],  # Convert to array format
+                "skillId": [],
+                "page": 1,
+                "perPage": 20
+            }
+        elif tool_name == "query-tc-challenges":
+            # Format challenges arguments
+            difficulty = arguments.get('difficulty', 'easy')
+            return {
+                "difficulty": difficulty,
+                "page": 1,
+                "perPage": 20
+            }
+        else:
+            return arguments
+    
+    async def get_challenges(self, difficulty: str = "easy", limit: int = 5) -> Optional[Dict[str, Any]]:
+        """Get challenges from MCP server"""
+        print(f"🔄 Fetching {difficulty} challenges from Topcoder MCP...")
+        return await self._make_tool_call("query-tc-challenges", {
+            "difficulty": difficulty
+        })
+    
     async def get_skills(self, category: str = "algorithms", limit: int = 10) -> Optional[Dict[str, Any]]:
-        """Get skills - fallback to educational content due to server issues"""
-        await asyncio.sleep(0.1)  # Simulate network delay
-        return None
+        """Get skills from MCP server"""
+        print(f"🔄 Fetching {category} skills from Topcoder MCP...")
+        return await self._make_tool_call("query-tc-skills", {
+            "category": category
+        })
 
 # Initialize MCP client
 mcp_client = None
@@ -76,15 +172,29 @@ class ProfessorAlGorithm:
         if difficulty not in ['easy', 'medium', 'hard']:
             difficulty = 'easy'
         
-        # Try MCP first if available (currently disabled due to server issues)
+        # Try MCP first if available
         if mcp_client:
             try:
                 mcp_data = await mcp_client.get_challenges(difficulty, 5)
-                if mcp_data and 'challenges' in mcp_data:
-                    challenges = mcp_data['challenges']
-                    self.available_challenges = challenges
-                    display_text = self._format_mcp_challenges(mcp_data, difficulty)
-                    return display_text, challenges
+                if mcp_data:
+                    # Handle different response formats
+                    if 'challenges' in mcp_data:
+                        challenges = mcp_data['challenges']
+                    elif isinstance(mcp_data, dict) and 'raw_response' in mcp_data:
+                        # Parse raw response if needed
+                        try:
+                            parsed_data = json.loads(mcp_data['raw_response'])
+                            challenges = parsed_data.get('challenges', [])
+                        except:
+                            challenges = []
+                    else:
+                        challenges = []
+                    
+                    if challenges:
+                        self.available_challenges = challenges
+                        display_text = self._format_mcp_challenges({'challenges': challenges}, difficulty)
+                        print(f"✅ Loaded {len(challenges)} challenges from Topcoder MCP")
+                        return display_text, challenges
             except Exception as e:
                 print(f"MCP request failed: {e}")
         
@@ -268,12 +378,27 @@ class ProfessorAlGorithm:
         if category not in valid_categories:
             category = 'algorithms'
         
-        # Try MCP first if available (currently disabled due to server issues)
+        # Try MCP first if available
         if mcp_client:
             try:
                 mcp_data = await mcp_client.get_skills(category, 10)
-                if mcp_data and 'skills' in mcp_data:
-                    return self._format_mcp_skills(mcp_data, category)
+                if mcp_data:
+                    # Handle different response formats
+                    if 'skills' in mcp_data:
+                        skills = mcp_data['skills']
+                    elif isinstance(mcp_data, dict) and 'raw_response' in mcp_data:
+                        # Parse raw response if needed
+                        try:
+                            parsed_data = json.loads(mcp_data['raw_response'])
+                            skills = parsed_data.get('skills', [])
+                        except:
+                            skills = []
+                    else:
+                        skills = []
+                    
+                    if skills:
+                        print(f"✅ Loaded {len(skills)} skills from Topcoder MCP")
+                        return self._format_mcp_skills({'skills': skills}, category)
             except Exception as e:
                 print(f"MCP request failed: {e}")
         
