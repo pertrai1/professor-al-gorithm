@@ -678,7 +678,8 @@ def create_gradio_interface():
         async def fetch_challenges(difficulty):
             try:
                 if not difficulty:
-                    return "❌ Please select a difficulty level first.", gr.update(visible=False), gr.update(visible=False), gr.update(value=""), gr.update(open=False)
+                    return ("❌ Please select a difficulty level first.", gr.update(visible=False), 
+                           gr.update(visible=False), gr.update(value=""), gr.update(open=True), gr.update(open=False))
                     
                 display_text, challenges = await professor.get_challenges(difficulty)
                 
@@ -690,12 +691,14 @@ def create_gradio_interface():
                     gr.update(choices=radio_choices, visible=True, value=None),
                     gr.update(visible=True),
                     gr.update(value=""),
-                    gr.update(open=True)  # Open the challenge selection accordion
+                    gr.update(open=False),  # Close the challenge library accordion
+                    gr.update(open=True)    # Open the challenge selection accordion
                 )
             except Exception as e:
                 print(f"Error in fetch_challenges: {e}")
                 fallback_text = "❌ Error loading challenges. Please try again."
-                return fallback_text, gr.update(visible=False), gr.update(visible=False), gr.update(value=""), gr.update(open=False)
+                return (fallback_text, gr.update(visible=False), gr.update(visible=False), 
+                       gr.update(value=""), gr.update(open=True), gr.update(open=False))
         
         async def fetch_skills(category):
             try:
@@ -741,7 +744,7 @@ def create_gradio_interface():
         get_challenges_btn.click(
             fn=fetch_challenges,
             inputs=[difficulty_select],
-            outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status, challenge_selection_accordion],
+            outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status, challenge_library_accordion, challenge_selection_accordion],
             show_progress="full",
             scroll_to_output=True
         )
