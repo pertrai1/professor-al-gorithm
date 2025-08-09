@@ -569,6 +569,9 @@ def create_gradio_interface():
         .phase-header { background: linear-gradient(90deg, #667eea 0%, #764ba2 100%); 
                        color: white; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
         .canvas-section { border: 2px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+        .accordion { margin-bottom: 1rem; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .accordion summary { padding: 0.5rem; font-weight: 600; cursor: pointer; }
+        .accordion[open] { border-color: #667eea; }
         """
     ) as interface:
         
@@ -584,35 +587,35 @@ def create_gradio_interface():
         
         with gr.Row():
             with gr.Column(scale=1):
-                # Challenge Selection
-                gr.Markdown("### 📚 Challenge Library")
-                difficulty_select = gr.Dropdown(
-                    choices=["easy", "medium", "hard"],
-                    value="easy",
-                    label="Difficulty Level"
-                )
-                get_challenges_btn = gr.Button("🎯 Get New Challenges", variant="primary")
-                challenges_display = gr.Markdown("Click 'Get New Challenges' to start!")
+                # Challenge Library Accordion
+                with gr.Accordion("📚 Challenge Library", open=True) as challenge_library_accordion:
+                    difficulty_select = gr.Dropdown(
+                        choices=["easy", "medium", "hard"],
+                        value="easy",
+                        label="Difficulty Level"
+                    )
+                    get_challenges_btn = gr.Button("🎯 Get New Challenges", variant="primary")
+                    challenges_display = gr.Markdown("Click 'Get New Challenges' to start!")
                 
-                # Challenge Selection
-                gr.Markdown("### 🎯 Select Your Challenge")
-                challenge_selector = gr.Radio(
-                    choices=[],
-                    label="Choose a challenge to work on:",
-                    visible=False
-                )
-                select_challenge_btn = gr.Button("📝 Select This Challenge", visible=False)
-                challenge_status = gr.Markdown("")
+                # Challenge Selection Accordion
+                with gr.Accordion("🎯 Select Your Challenge", open=False) as challenge_selection_accordion:
+                    challenge_selector = gr.Radio(
+                        choices=[],
+                        label="Choose a challenge to work on:",
+                        visible=False
+                    )
+                    select_challenge_btn = gr.Button("📝 Select This Challenge", visible=False)
+                    challenge_status = gr.Markdown("")
                 
-                # Skills Recommendations  
-                gr.Markdown("### 🛠️ Skills to Practice")
-                category_select = gr.Dropdown(
-                    choices=["algorithms", "data-structures", "dynamic-programming", "graphs"],
-                    value="algorithms",
-                    label="Skill Category"
-                )
-                get_skills_btn = gr.Button("📖 Get Skills Guide")
-                skills_display = gr.Markdown("Click 'Get Skills Guide' for recommendations!")
+                # Skills Recommendations Accordion
+                with gr.Accordion("🛠️ Skills to Practice", open=False) as skills_accordion:
+                    category_select = gr.Dropdown(
+                        choices=["algorithms", "data-structures", "dynamic-programming", "graphs"],
+                        value="algorithms",
+                        label="Skill Category"
+                    )
+                    get_skills_btn = gr.Button("📖 Get Skills Guide")
+                    skills_display = gr.Markdown("Click 'Get Skills Guide' for recommendations!")
             
             with gr.Column(scale=2):
                 # Algorithm Design Canvas
@@ -675,7 +678,7 @@ def create_gradio_interface():
         async def fetch_challenges(difficulty):
             try:
                 if not difficulty:
-                    return "❌ Please select a difficulty level first.", gr.update(visible=False), gr.update(visible=False), gr.update(value="")
+                    return "❌ Please select a difficulty level first.", gr.update(visible=False), gr.update(visible=False), gr.update(value=""), gr.update(open=False)
                     
                 display_text, challenges = await professor.get_challenges(difficulty)
                 
@@ -686,12 +689,13 @@ def create_gradio_interface():
                     display_text,
                     gr.update(choices=radio_choices, visible=True, value=None),
                     gr.update(visible=True),
-                    gr.update(value="")
+                    gr.update(value=""),
+                    gr.update(open=True)  # Open the challenge selection accordion
                 )
             except Exception as e:
                 print(f"Error in fetch_challenges: {e}")
-                fallback_text = professor._get_fallback_challenges()
-                return fallback_text, gr.update(visible=False), gr.update(visible=False), gr.update(value="")
+                fallback_text = "❌ Error loading challenges. Please try again."
+                return fallback_text, gr.update(visible=False), gr.update(visible=False), gr.update(value=""), gr.update(open=False)
         
         async def fetch_skills(category):
             try:
@@ -705,14 +709,17 @@ def create_gradio_interface():
         def select_challenge_handler(selected_challenge):
             try:
                 if not selected_challenge:
-                    return "❌ Please select a challenge first."
+                    return "❌ Please select a challenge first.", gr.update(open=False), gr.update(open=True)
                 
                 # Extract challenge number from selection (e.g., "1. Two Sum Problem" -> 1)
                 challenge_num = int(selected_challenge.split('.')[0])
-                return professor.select_challenge(challenge_num)
+                result = professor.select_challenge(challenge_num)
+                
+                # Close challenge selection accordion and open skills accordion
+                return result, gr.update(open=False), gr.update(open=True)
             except Exception as e:
                 print(f"Error in select_challenge_handler: {e}")
-                return f"❌ Error selecting challenge: {str(e)}"
+                return f"❌ Error selecting challenge: {str(e)}", gr.update(open=True), gr.update(open=False)
 
         def guide_phase(phase, user_input):
             try:
@@ -734,7 +741,7 @@ def create_gradio_interface():
         get_challenges_btn.click(
             fn=fetch_challenges,
             inputs=[difficulty_select],
-            outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status],
+            outputs=[challenges_display, challenge_selector, select_challenge_btn, challenge_status, challenge_selection_accordion],
             show_progress="full",
             scroll_to_output=True
         )
@@ -742,7 +749,7 @@ def create_gradio_interface():
         select_challenge_btn.click(
             fn=select_challenge_handler,
             inputs=[challenge_selector],
-            outputs=[challenge_status],
+            outputs=[challenge_status, challenge_selection_accordion, skills_accordion],
             show_progress="minimal",
             scroll_to_output=True
         )
