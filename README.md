@@ -9,20 +9,19 @@ app_file: app.py
 pinned: false
 ---
 
-# Professor Al Gorithm - Virtual Data Structure and Algorithm Tutor 🎓
+# Professor Al Gorithm - AI-Powered Algorithm Design Canvas Assistant 🎓
 
-This is based off of the Topcoder challenge - [Learn AI – Build and Deploy](https://www.topcoder.com/challenges/355a5497-71c3-4e3a-b200-f53d62564667?tab=details) and [Hugging Face MCP Course](https://huggingface.co/learn/mcp-course/unit0/introduction#welcome-to-the--model-context-protocol-mcp-course)
+An intelligent coding tutor that helps you work through **any** coding challenge using the [Algorithm Design Canvas](https://www.hiredintech.com/algorithms/algorithm-design-canvas/what-is-the-canvas/) methodology. Perfect for whiteboard interview preparation and algorithmic thinking development.
 
-Read the [Use Case](USE-CASE-DOCUMENT.md) document for a detailed overview of the project.
+## 🧠 **Key Features:**
 
-AI agent that helps guide you through solving a coding problem following the [Algorithm Design Canvas](https://www.hiredintech.com/algorithms/algorithm-design-canvas/what-is-the-canvas/). The professor will guide you through the steps to solve the problem as if you were doing a whiteboard coding interview. The steps taken will be based on:
+- **Universal Challenge Input**: Enter any coding challenge title and description
+- **AI Pattern Detection**: Automatically analyzes your challenge and detects relevant algorithmic patterns
+- **Context-Aware Guidance**: Provides personalized, phase-specific guidance based on detected patterns
+- **Educational Focus**: Teaches methodology and thinking process, not just solutions
+- **4-Phase Canvas**: Structured approach: Constraints → Ideas → Tests → Code
 
-- Constraints
-- Ideas
-- Test Cases
-- Code
-
-The professor will not supply you any code throughout the process. No matter what language you are using, the professor will guide you through the steps to solve the problem. The professor will not write any code for you, but will help you think through the problem and come up with a solution. Rather than give you the code, you will be taught how to write it yourself.
+The professor will guide you through problem-solving like a whiteboard interview but **never writes code for you** - instead, it teaches you how to think through problems systematically.
 
 ## Core Concept & Algorithm Design Canvas
 
@@ -261,10 +260,7 @@ This project connects to Topcoder's MCP server using:
 # Install dependencies
 pip install -r requirements.txt
 
-# Optional: Set up MCP environment (create .env file)
-echo "MCP_SESSION_TOKEN=your-64-character-hex-token" > .env
-
-# Run the application (works immediately with educational content)
+# Run the application (works immediately - no setup required!)
 python3 app.py
 ```
 
@@ -277,8 +273,8 @@ python3 app.py
 **Prerequisites for Deployment:**
 
 - A Hugging Face account
-- MCP server credentials (endpoint URL and session token)
 - This repository ready to deploy
+- No additional setup required!
 
 **Deployment Steps:**
 
@@ -293,14 +289,8 @@ python3 app.py
    - Ensure `requirements.txt`, `Dockerfile`, and `app.py` are in the root directory
    - No backend directory needed (Python-only architecture)
 
-3. **Configure Environment Variables (Optional):**
-   For MCP integration when server becomes available, set these secrets in your Hugging Face Space settings:
-
-   ```
-   MCP_SESSION_TOKEN=your-64-character-hex-token
-   ```
-
-   **Note:** The application works perfectly without any environment variables using rich educational content.
+3. **No Configuration Required:**
+   The application runs immediately without any environment variables or additional setup!
 
 4. **Automatic Deployment:**
    - Hugging Face Spaces will automatically build and deploy using the Dockerfile
